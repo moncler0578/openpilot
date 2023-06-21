@@ -186,11 +186,25 @@ static void camera_init(VisionIpcServer *v, CameraState *s, int camera_id, int c
 void cameras_init(VisionIpcServer *v, MultiCameraState *s, cl_device_id device_id, cl_context ctx) {
   char project_name[1024] = {0};
   property_get("ro.boot.project_name", project_name, "");
-  assert(strlen(project_name) == 0);
+
+  if (strlen(project_name) == 0) {
+    LOGD("LePro 3 op system detected");
+    s->device = DEVICE_LP3;
 
   // sensor is flipped in LP3
   // IMAGE_ORIENT = 3
   init_array_imx298[0].reg_data = 3;
+    cameras_supported[CAMERA_ID_IMX298].bayer_flip = 3;
+  } else if (strcmp(product_name, "OnePlus3") == 0 && strcmp(project_name, "15811") != 0) {
+    // no more OP3 support
+    s->device = DEVICE_OP3;
+    assert(false);
+  } else if (strcmp(product_name, "OnePlus3") == 0 && strcmp(project_name, "15811") == 0) {
+    // only OP3T support
+    s->device = DEVICE_OP3T;
+  } else {
+    assert(false);
+  }
 
   // 0   = ISO 100
   // 256 = ISO 200
@@ -212,11 +226,30 @@ void cameras_init(VisionIpcServer *v, MultiCameraState *s, cl_device_id device_i
 #endif
               device_id, ctx,
               VISION_STREAM_RGB_ROAD, VISION_STREAM_ROAD);
+  s->road_cam.apply_exposure = imx298_apply_exposure;
 
+  if (s->device == DEVICE_OP3T) {
+    camera_init(v, &s->driver_cam, CAMERA_ID_S5K3P8SP, 1,
+                /*pixel_clock=*/560000000, /*line_length_pclk=*/5120,
+                /*max_gain=*/510, 10, device_id, ctx,
+                VISION_STREAM_RGB_FRONT, VISION_STREAM_DRIVER);
+    s->driver_cam.apply_exposure = imx179_s5k3p8sp_apply_exposure;
+  } else if (s->device == DEVICE_LP3) {
   camera_init(v, &s->driver_cam, CAMERA_ID_OV8865, 1,
               /*pixel_clock=*/72000000, /*line_length_pclk=*/1602,
               /*max_gain=*/510, 10, device_id, ctx,
-              VISION_STREAM_RGB_DRIVER, VISION_STREAM_DRIVER);
+              VISION_STREAM_RGB_FRONT, VISION_STREAM_DRIVER);
+    s->driver_cam.apply_exposure = ov8865_apply_exposure;
+  } else {
+    camera_init(v, &s->driver_cam, CAMERA_ID_IMX179, 1,
+                /*pixel_clock=*/251200000, /*line_length_pclk=*/3440,
+                /*max_gain=*/224, 20, device_id, ctx,
+                VISION_STREAM_RGB_FRONT, VISION_STREAM_DRIVER);
+    s->driver_cam.apply_exposure = imx179_s5k3p8sp_apply_exposure;
+  }
+
+  s->road_cam.device = s->device;
+  s->driver_cam.device = s->device;
 
   s->sm = new SubMaster({"driverState"});
   s->pm = new PubMaster({"roadCameraState", "driverCameraState", "thumbnail"});
@@ -844,6 +877,9 @@ static void parse_autofocus(CameraState *s, uint8_t *d) {
 }
 
 static void do_autofocus(CameraState *s) {
+  const int dac_down = s->device == DEVICE_LP3 ? LP3_AF_DAC_DOWN : OP3T_AF_DAC_DOWN;
+  const int dac_up = s->device == DEVICE_LP3 ? LP3_AF_DAC_UP : OP3T_AF_DAC_UP;
+  
   float lens_true_pos = s->lens_true_pos.load();
   if (!isnan(s->focus_err)) {
     // learn lens_true_pos
@@ -851,6 +887,10 @@ static void do_autofocus(CameraState *s) {
     lens_true_pos -= s->focus_err*focus_kp;
   }
 
+  if (auto accel_z = get_accel_z(sm)) {
+    s->last_sag_acc_z = *accel_z;
+  }
+  const float sag = (s->last_sag_acc_z / 9.8) * 128;
   // stay off the walls
   lens_true_pos = std::clamp(lens_true_pos, float(LP3_AF_DAC_DOWN), float(LP3_AF_DAC_UP));
   s->lens_true_pos.store(lens_true_pos);
@@ -1029,19 +1069,24 @@ static void ops_thread(MultiCameraState *s) {
 }
 
 static void setup_self_recover(CameraState *c, const uint16_t *lapres, size_t lapres_size) {
+  const int dac_down = c->device == DEVICE_LP3 ? LP3_AF_DAC_DOWN : OP3T_AF_DAC_DOWN;
+  const int dac_up = c->device == DEVICE_LP3 ? LP3_AF_DAC_UP : OP3T_AF_DAC_UP;
+  const int dac_m = c->device == DEVICE_LP3 ? LP3_AF_DAC_M : OP3T_AF_DAC_M;
+  const int dac_3sig = c->device == DEVICE_LP3 ? LP3_AF_DAC_3SIG : OP3T_AF_DAC_3SIG;
+  
   const float lens_true_pos = c->lens_true_pos.load();
   int self_recover = c->self_recover.load();
-  if (self_recover < 2 && (lens_true_pos < (LP3_AF_DAC_DOWN + 1) || lens_true_pos > (LP3_AF_DAC_UP - 1)) && is_blur(lapres, lapres_size)) {
+  if (self_recover < 2 && (lens_true_pos < (dac_down + 1) || lens_true_pos > (dac_up - 1)) && is_blur(lapres, lapres_size)) {
     // truly stuck, needs help
     if (--self_recover < -FOCUS_RECOVER_PATIENCE) {
       LOGD("road camera bad state detected. attempting recovery from %.1f, recover state is %d", lens_true_pos, self_recover);
       // parity determined by which end is stuck at
-      self_recover = FOCUS_RECOVER_STEPS + (lens_true_pos < LP3_AF_DAC_M ? 1 : 0);
+      self_recover = FOCUS_RECOVER_STEPS + (lens_true_pos < dac_m ? 1 : 0);
     }
-  } else if (self_recover < 2 && (lens_true_pos < (LP3_AF_DAC_M - LP3_AF_DAC_3SIG) || lens_true_pos > (LP3_AF_DAC_M + LP3_AF_DAC_3SIG))) {
+  } else if (self_recover < 2 && (lens_true_pos < (dac_m - dac_3sig) || lens_true_pos > (dac_m + dac_3sig))) {
     // in suboptimal position with high prob, but may still recover by itself
     if (--self_recover < -(FOCUS_RECOVER_PATIENCE * 3)) {
-      self_recover = FOCUS_RECOVER_STEPS / 2 + (lens_true_pos < LP3_AF_DAC_M ? 1 : 0);
+      self_recover = FOCUS_RECOVER_STEPS / 2 + (lens_true_pos < dac_m ? 1 : 0);
     }
   } else if (self_recover < 0) {
     self_recover += 1;  // reset if fine
