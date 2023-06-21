@@ -30,7 +30,7 @@ function two_init {
     mount -o remount,rw /system
     echo -n 20 > /VERSION
     mount -o remount,r /system
-  fi
+  fi 
 
   # set IO scheduler
   setprop sys.io.scheduler noop
@@ -110,6 +110,18 @@ function two_init {
   # wifi scan
   wpa_cli IFNAME=wlan0 SCAN
 
+  # One-time fix for a subset of OP3T with gyro orientation offsets.
+  # Remove and regenerate qcom sensor registry. Only done on OP3T mainboards.
+  # Performed exactly once. The old registry is preserved just-in-case, and
+  # doubles as a flag denoting we've already done the reset.
+  if [ -f /ONEPLUS ] && [ ! -f "/persist/comma/op3t-sns-reg-backup" ]; then
+    echo "Performing OP3T sensor registry reset"
+    mv /persist/sensors/sns.reg /persist/comma/op3t-sns-reg-backup &&
+      rm -f /persist/sensors/sensors_settings /persist/sensors/error_log /persist/sensors/gyro_sensitity_cal &&
+      echo "restart" > /sys/kernel/debug/msm_subsys/slpi &&
+      sleep 5  # Give Android sensor subsystem a moment to recover
+  fi
+  
   # Check for NEOS update
   if [ $(< /VERSION) != "$REQUIRED_NEOS_VERSION" ]; then
     echo "Installing NEOS update"
@@ -140,17 +152,6 @@ function tici_init {
       sudo reboot
     fi
     $DIR/selfdrive/hardware/tici/updater $AGNOS_PY $MANIFEST
-  fi
-  # One-time fix for a subset of OP3T with gyro orientation offsets.
-  # Remove and regenerate qcom sensor registry. Only done on OP3T mainboards.
-  # Performed exactly once. The old registry is preserved just-in-case, and
-  # doubles as a flag denoting we've already done the reset.
-  if [ -f /ONEPLUS ] && [ ! -f "/persist/comma/op3t-sns-reg-backup" ]; then
-    echo "Performing OP3T sensor registry reset"
-    mv /persist/sensors/sns.reg /persist/comma/op3t-sns-reg-backup &&
-      rm -f /persist/sensors/sensors_settings /persist/sensors/error_log /persist/sensors/gyro_sensitity_cal &&
-      echo "restart" > /sys/kernel/debug/msm_subsys/slpi &&
-      sleep 5  # Give Android sensor subsystem a moment to recover
   fi
 }
 
