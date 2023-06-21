@@ -187,6 +187,9 @@ void cameras_init(VisionIpcServer *v, MultiCameraState *s, cl_device_id device_i
   char project_name[1024] = {0};
   property_get("ro.boot.project_name", project_name, "");
 
+  char product_name[1024] = {0};
+  property_get("ro.product.name", product_name, "");
+  
   if (strlen(project_name) == 0) {
     LOGD("LePro 3 op system detected");
     s->device = DEVICE_LP3;
@@ -892,9 +895,11 @@ static void do_autofocus(CameraState *s) {
   }
   const float sag = (s->last_sag_acc_z / 9.8) * 128;
   // stay off the walls
-  lens_true_pos = std::clamp(lens_true_pos, float(LP3_AF_DAC_DOWN), float(LP3_AF_DAC_UP));
+  lens_true_pos = std::clamp(lens_true_pos, float(dac_down), float(dac_up));
+  int target = std::clamp(lens_true_pos - sag, float(dac_down), float(dac_up));
   s->lens_true_pos.store(lens_true_pos);
-  actuator_move(s, lens_true_pos);
+
+  actuator_move(s, target);
 }
 
 void camera_autoexposure(CameraState *s, float grey_frac) {
