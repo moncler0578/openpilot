@@ -316,7 +316,7 @@ void NvgWindow::drawLaneLines(QPainter &painter, const UIState *s) {
     bg.setColorAt(1.0, QColor::fromHslF(curve_hue / 360., 1.0, 0.65, 0.0));
   } else {
     bg.setColorAt(0, whiteColor());
-    bg.setColorAt(1, whiteColor(0));
+    bg.setColorAt(1, whiteColor(200));
   }
   painter.setBrush(bg);
   painter.drawPolygon(scene.track_vertices.v, scene.track_vertices.cnt);
