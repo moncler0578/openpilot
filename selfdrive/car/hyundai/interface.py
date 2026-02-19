@@ -80,7 +80,7 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.torque.friction = 0.01
       ret.lateralTuning.torque.ki = 0.5 / max_lat_accel
       ret.lateralTuning.torque.deadzoneBP = [0.]
-      ret.lateralTuning.torque.deadzoneV = [0.]
+      ret.lateralTuning.torque.deadzoneV = [0.01]
 
 
     ret.steerRatio = 16.5
@@ -91,14 +91,14 @@ class CarInterface(CarInterfaceBase):
 
     # longitudinal
     ret.longitudinalTuning.kpBP = [0., 5.*CV.KPH_TO_MS, 10.*CV.KPH_TO_MS, 30.*CV.KPH_TO_MS, 130.*CV.KPH_TO_MS]
-    ret.longitudinalTuning.kpV = [1.25, 1.1, 1.0, 0.85, 0.48]
+    ret.longitudinalTuning.kpV = [1.25, 1.1, 1.0, 0.88, 0.48]
     ret.longitudinalTuning.kiBP = [0., 130. * CV.KPH_TO_MS]
     ret.longitudinalTuning.kiV = [0.1, 0.05]
     ret.longitudinalActuatorDelayLowerBound = 0.3
     ret.longitudinalActuatorDelayUpperBound = 0.3
 
     ret.stopAccel = -2.0
-    ret.stoppingDecelRate = 0.6  # brake_travel/s while trying to stop
+    ret.stoppingDecelRate = 0.4  # brake_travel/s while trying to stop
     ret.vEgoStopping = 0.5
     ret.vEgoStarting = 0.5
 
@@ -107,18 +107,6 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 1900. + STD_CARGO_KG
       ret.wheelbase = 3.01
       ret.centerToFront = ret.wheelbase * 0.4
-
-      ret.steerRatio = 16.0
-      ret.steerActuatorDelay = 0.075
-      ret.steerRateCost = 0.4
-
-      if ret.lateralTuning.which() == 'torque':
-        ret.lateralTuning.torque.useSteeringAngle = True
-        max_lat_accel = 3.2
-        ret.lateralTuning.torque.kp = 2.0 / max_lat_accel
-        ret.lateralTuning.torque.kf = 1.0 / max_lat_accel
-        ret.lateralTuning.torque.friction = 0.005
-        ret.lateralTuning.torque.ki = 0.05 / max_lat_accel
         
     elif candidate == CAR.GENESIS_G70:
       ret.mass = 1640. + STD_CARGO_KG
