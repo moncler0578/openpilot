@@ -131,7 +131,7 @@ class CarInterfaceBase(ABC):
   def apply(self, c: car.CarControl, controls) -> Tuple[car.CarControl.Actuators, List[bytes]]:
     pass
 
-  def create_common_events(self, cs_out, extra_gears=None, pcm_enable=True):
+  def create_common_events(self, cs_out, extra_gears=None, pcm_enable=True, allow_enable=True):
     events = Events()
 
     #if cs_out.doorOpen:
@@ -176,7 +176,7 @@ class CarInterfaceBase(ABC):
 
     # we engage when pcm is active (rising edge)
     if pcm_enable:
-      if cs_out.cruiseState.enabled and not self.CS.out.cruiseState.enabled:
+      if cs_out.cruiseState.enabled and not self.CS.out.cruiseState.enabled and allow_enable:
         events.add(EventName.pcmEnable)
       elif not cs_out.cruiseState.enabled:
         events.add(EventName.pcmDisable)
