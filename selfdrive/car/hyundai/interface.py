@@ -45,6 +45,8 @@ class CarInterface(CarInterfaceBase):
     ret.steerFaultMaxAngle = 85
     ret.steerFaultMaxFrames = 90
 
+    ret.disableLateralLiveTuning = False
+
     # lateral
     lateral_control = Params().get("LateralControl", encoding='utf-8')
     if lateral_control == 'INDI':
@@ -105,8 +107,6 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 1900. + STD_CARGO_KG
       ret.wheelbase = 3.01
       ret.centerToFront = ret.wheelbase * 0.4
-      ret.maxSteeringAngleDeg = 90.
-      ret.steerFaultMaxAngle = 0
     elif candidate == CAR.GENESIS_G70:
       ret.mass = 1640. + STD_CARGO_KG
       ret.wheelbase = 2.84
