@@ -75,13 +75,14 @@ class LatControlTorque(LatControl):
       pid_log.error = error_deadzone
 
       ff = desired_lateral_accel - params.roll * ACCELERATION_DUE_TO_GRAVITY
+      # convert friction into lateral accel units for feedforward
+      friction_compensation = interp(desired_lateral_jerk, [-JERK_THRESHOLD, JERK_THRESHOLD],
+                                     [-self.friction, self.friction])
+      ff += friction_compensation / CP.lateralTuning.torque.kf
       output_torque = self.pid.update(error_deadzone,
                                       override=CS.steeringPressed, feedforward=ff,
                                       speed=CS.vEgo,
                                       freeze_integrator=CS.steeringRateLimited)
-
-      friction_compensation = interp(desired_lateral_jerk, [-JERK_THRESHOLD, JERK_THRESHOLD], [-self.friction, self.friction])
-      output_torque += friction_compensation
 
       pid_log.active = True
       pid_log.p = self.pid.p
