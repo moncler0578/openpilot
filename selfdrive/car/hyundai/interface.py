@@ -107,6 +107,19 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 1900. + STD_CARGO_KG
       ret.wheelbase = 3.01
       ret.centerToFront = ret.wheelbase * 0.4
+
+      ret.steerRatio = 16.0
+      ret.steerActuatorDelay = 0.075
+      ret.steerRateCost = 0.4
+
+      if ret.lateralTuning.which() == 'torque':
+        ret.lateralTuning.torque.useSteeringAngle = True
+        max_lat_accel = 3.2
+        ret.lateralTuning.torque.kp = 2.0 / max_lat_accel
+        ret.lateralTuning.torque.kf = 1.0 / max_lat_accel
+        ret.lateralTuning.torque.friction = 0.005
+        ret.lateralTuning.torque.ki = 0.05 / max_lat_accel
+        
     elif candidate == CAR.GENESIS_G70:
       ret.mass = 1640. + STD_CARGO_KG
       ret.wheelbase = 2.84
