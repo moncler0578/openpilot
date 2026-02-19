@@ -191,6 +191,23 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   QHBoxLayout *power_layout = new QHBoxLayout();
   power_layout->setSpacing(30);
 
+  QPushButton *rebuild_btn = new QPushButton("Rebuild");
+  rebuild_btn->setObjectName("rebuild_btn");
+  power_layout->addWidget(rebuild_btn);
+  QObject::connect(rebuild_btn, &QPushButton::clicked, [=]() {
+
+    if (ConfirmationDialog::confirm("Are you sure you want to rebuild?", this)) {
+      std::system("cd /data/openpilot && scons -c");
+      std::system("rm /data/openpilot/.sconsign.dblite");
+      std::system("rm /data/openpilot/prebuilt");
+      std::system("rm -rf /tmp/scons_cache");
+      if (Hardware::TICI())
+        std::system("sudo reboot");
+      else
+        std::system("reboot");
+    }
+  });
+  
   QPushButton *reboot_btn = new QPushButton("Reboot");
   reboot_btn->setObjectName("reboot_btn");
   power_layout->addWidget(reboot_btn);
@@ -208,6 +225,8 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
   setStyleSheet(R"(
     #reboot_btn { height: 120px; border-radius: 15px; background-color: #393939; }
     #reboot_btn:pressed { background-color: #4a4a4a; }
+    #rebuild_btn { height: 120px; border-radius: 15px; background-color: #393939; }
+    #rebuild_btn:pressed { background-color: #4a4a4a; }
     #poweroff_btn { height: 120px; border-radius: 15px; background-color: #E22C2C; }
     #poweroff_btn:pressed { background-color: #FF2424; }
   )");
