@@ -80,7 +80,7 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.torque.friction = 0.0
       
       ret.lateralTuning.torque.kd = 1.0
-      ret.lateralTuning.torque.steeringAngleDeadzoneDeg = 0.5
+      ret.lateralTuning.torque.steeringAngleDeadzoneDeg = 0.0
 
 
     ret.steerRatio = 16.0
