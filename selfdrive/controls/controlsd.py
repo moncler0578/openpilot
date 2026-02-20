@@ -194,7 +194,6 @@ class Controls:
 
     self.wide_camera = TICI and params.get_bool('EnableWideCamera')
     self.disable_op_fcw = params.get_bool('DisableOpFcw')
-    self.mad_mode_enabled = Params().get_bool('MadModeEnabled')
 
     # TODO: no longer necessary, aside from process replay
     self.sm['liveParameters'].valid = True
@@ -233,12 +232,6 @@ class Controls:
     if not self.initialized:
       self.events.add(EventName.controlsInitializing)
       return
-
-    # Disable on rising edge of accelerator or brake. Also disable on brake when speed > 0
-    if not self.mad_mode_enabled:
-      if (CS.gasPressed and not self.CS_prev.gasPressed and self.disengage_on_accelerator) or \
-        (CS.brakePressed and (not self.CS_prev.brakePressed or not CS.standstill)):
-        self.events.add(EventName.pedalPressed)
 
     if CS.gasPressed:
       self.events.add(EventName.pedalPressedPreEnable if self.disengage_on_accelerator else
