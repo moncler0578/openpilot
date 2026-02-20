@@ -373,7 +373,6 @@ void NvgWindow::paintEvent(QPaintEvent *event) {
   QPainter p(this);
 
   p.beginNativePainting();
-  CameraViewWidget::setFrameId(model.getFrameId());
   CameraViewWidget::paintGL();
   p.endNativePainting();
 
