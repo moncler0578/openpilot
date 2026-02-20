@@ -172,6 +172,8 @@ class Controls:
     self.logged_comm_issue = False
     self.button_timers = {ButtonEvent.Type.decelCruise: 0, ButtonEvent.Type.accelCruise: 0}
     self.last_actuators = car.CarControl.Actuators.new_message()
+    self.desired_curvature = 0.0
+    self.desired_curvature_rate = 0.0
 
     # scc smoother
     self.is_cruise_enabled = False
@@ -606,13 +608,13 @@ class Controls:
                                         self.sm['radarState'])
 
       # Steering PID loop and lateral MPC
-      desired_curvature, desired_curvature_rate = get_lag_adjusted_curvature(self.CP, CS.vEgo,
-                                                                             lat_plan.psis,
-                                                                             lat_plan.curvatures,
-                                                                             lat_plan.curvatureRates)
+      self.desired_curvature, self.desired_curvature_rate = get_lag_adjusted_curvature(self.CP, CS.vEgo,
+                                                                                       lat_plan.psis,
+                                                                                       lat_plan.curvatures,
+                                                                                       lat_plan.curvatureRates)
       actuators.steer, actuators.steeringAngleDeg, lac_log = self.LaC.update(CC.latActive, CS, self.VM, params, 
-                                                                             self.last_actuators, desired_curvature,
-                                                                             desired_curvature_rate, self.sm['liveLocationKalman'])
+                                                                             self.last_actuators, self.desired_curvature,
+                                                                             self.desired_curvature_rate, self.sm['liveLocationKalman'])
     else:
       lac_log = log.ControlsState.LateralDebugState.new_message()
       if self.sm.rcv_frame['testJoystick'] > 0:
@@ -763,6 +765,8 @@ class Controls:
     controlsState.enabled = self.enabled
     controlsState.active = self.active
     controlsState.curvature = curvature
+    controlsState.desiredCurvature = self.desired_curvature
+    controlsState.desiredCurvatureRate = self.desired_curvature_rate
     controlsState.state = self.state
     controlsState.engageable = not self.events.any(ET.NO_ENTRY)
     controlsState.longControlState = self.LoC.long_control_state
