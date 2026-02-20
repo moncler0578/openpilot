@@ -74,14 +74,14 @@ class CarInterface(CarInterfaceBase):
     else:
       ret.lateralTuning.init('torque')
       ret.lateralTuning.torque.useSteeringAngle = True
-      ret.lateralTuning.torque.kp = 0.7
-      ret.lateralTuning.torque.ki = 0.2
-      ret.lateralTuning.torque.kd = 0.0
-      ret.lateralTuning.torque.kf = 0.2
+      max_lat_accel = 1.8
+      ret.lateralTuning.torque.kp = 1.0 / max_lat_accel
+      ret.lateralTuning.torque.kf = 1.0 / max_lat_accel
+      ret.lateralTuning.torque.ki = 0.25 / max_lat_accel
       ret.lateralTuning.torque.friction = 0.01
       
-      ret.lateralTuning.torque.deadzoneBP = [0.]
-      ret.lateralTuning.torque.deadzoneV = [0.01]
+      ret.lateralTuning.torque.kd = 0.0
+      ret.lateralTuning.torque.deadzone = 0.0
 
 
     ret.steerRatio = 16.0
@@ -115,9 +115,12 @@ class CarInterface(CarInterfaceBase):
 
       if ret.lateralTuning.which() == 'torque':
         ret.lateralTuning.torque.useSteeringAngle = True
-        ret.lateralTuning.torque.kp = 0.6
-        ret.lateralTuning.torque.ki = 0.2
-        ret.lateralTuning.torque.kf = 0.01
+        max_lat_accel = 2.2
+        ret.lateralTuning.torque.kp = 1.0 / max_lat_accel
+        ret.lateralTuning.torque.kf = 1.0 / max_lat_accel
+        ret.lateralTuning.torque.ki = 0.25 / max_lat_accel
+        ret.lateralTuning.torque.friction = 0.01
+        ret.lateralTuning.torque.kd = 0.0
         
     elif candidate == CAR.GENESIS_G70:
       ret.mass = 1640. + STD_CARGO_KG
