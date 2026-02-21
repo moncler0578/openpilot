@@ -79,7 +79,6 @@ class CAR:
 @dataclass
 class HyundaiCarInfo(CarInfo):
   package: str = "SCC + LKAS"
-  good_torque: bool = True
 
 
 CAR_INFO: Dict[str, Union[HyundaiCarInfo, List[HyundaiCarInfo]]] = {
