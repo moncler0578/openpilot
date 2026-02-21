@@ -87,7 +87,6 @@ CAR_INFO: Dict[str, Union[HyundaiCarInfo, List[HyundaiCarInfo]]] = {
   CAR.ELANTRA_HEV_2021: HyundaiCarInfo("Hyundai Elantra Hybrid 2021", video_link="https://youtu.be/_EdYQtV52-c"),
   CAR.GENESIS: HyundaiCarInfo("Hyundai Genesis 2015-16", min_enable_speed=19 * CV.MPH_TO_MS),
   CAR.IONIQ: HyundaiCarInfo("Hyundai Ioniq Hybrid 2017-19"),
-  CAR.IONIQ_HEV_2022: HyundaiCarInfo("Hyundai Ioniq Hybrid 2020-22", "SCC + LFA"),
   CAR.IONIQ_EV_LTD: HyundaiCarInfo("Hyundai Ioniq Electric 2019"),
   CAR.IONIQ_EV_2020: HyundaiCarInfo("Hyundai Ioniq Electric 2020"),
   CAR.IONIQ_PHEV: HyundaiCarInfo("Hyundai Ioniq Plug-In Hybrid 2020-21"),
