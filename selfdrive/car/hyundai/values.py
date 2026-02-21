@@ -96,7 +96,6 @@ CAR_INFO: Dict[str, Union[HyundaiCarInfo, List[HyundaiCarInfo]]] = {
   CAR.SANTA_FE: HyundaiCarInfo("Hyundai Santa Fe 2019-20", "All"),
   CAR.SANTA_FE_2022: HyundaiCarInfo("Hyundai Santa Fe 2021-22", "All"),
   CAR.SANTA_FE_HEV_2022: HyundaiCarInfo("Hyundai Santa Fe Hybrid 2022", "All"),
-  CAR.SANTA_FE_PHEV_2022: HyundaiCarInfo("Hyundai Santa Fe Plug-In Hybrid 2022", "All"),
   CAR.SONATA: HyundaiCarInfo("Hyundai Sonata 2020-22", "All", video_link="https://www.youtube.com/watch?v=ix63r9kE3Fw"),
   CAR.SONATA_LF: HyundaiCarInfo("Hyundai Sonata 2018-19"),
   CAR.PALISADE: [
