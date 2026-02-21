@@ -135,8 +135,8 @@ class CarInterfaceBase(ABC):
     ret.steerLimitTimer = 1.0
     return ret
 
-
- def configure_torque_tune(candidate, tune, steering_angle_deadzone_deg=0.0):
+  @staticmethod
+  def configure_torque_tune(candidate, tune, steering_angle_deadzone_deg=0.0):
     params = get_torque_params(candidate)
 
     tune.init('torque')
