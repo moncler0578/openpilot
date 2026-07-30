@@ -2,7 +2,6 @@ name: Resize left instrument panel
 on:
   push:
     branches: [g_image]
-    paths: [.github/workflows/resize_left_instrument.yml]
 permissions:
   contents: write
 jobs:
