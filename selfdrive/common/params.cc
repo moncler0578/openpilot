@@ -151,7 +151,7 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"PrimeRedirected", PERSISTENT},
     {"PrimeType", PERSISTENT},
     {"RecordFront", PERSISTENT},
-    {"RecordFrontLock", PERSISTENT},  // for the internal fleet
+    {"RecordFrontLock", PERSISTENT},
     {"ReleaseNotes", PERSISTENT},
     {"ShouldDoUpdate", CLEAR_ON_MANAGER_START},
     {"SnoozeUpdate", CLEAR_ON_MANAGER_START | CLEAR_ON_IGNITION_OFF},
@@ -189,14 +189,15 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"UseClusterSpeed", PERSISTENT},
     {"LongControlEnabled", PERSISTENT},
 
+    {"AnimatedValuePopup", PERSISTENT},
     {"ChevronInfo", PERSISTENT},
     {"DynamicLaneProfile", PERSISTENT},
     {"DynamicLaneProfileToggle", PERSISTENT},
     {"IsLdwsCar", PERSISTENT},
     {"LaneChangeEnabled", PERSISTENT},
     {"AutoLaneChangeEnabled", PERSISTENT},
-    {"CameraOffset", PERSISTENT},   // 카메라 위치 보정 (기본값 -0.06m), 레인모드에 영향
-    {"PathOffset", PERSISTENT},     // 주행 경로 좌우 보정 (기본값 0.0m), 전 모드에 영향
+    {"CameraOffset", PERSISTENT},
+    {"PathOffset", PERSISTENT},
     {"SccSmootherState", PERSISTENT},
     {"SccSmootherSlowOnCurves", PERSISTENT},
     {"SccSmootherSyncGasPressed", PERSISTENT},
@@ -212,40 +213,36 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"HapticFeedbackWhenSpeedCamera", PERSISTENT},
     {"TurnVisionControl", PERSISTENT},
     {"SoftRestartTriggered", CLEAR_ON_MANAGER_START},
-    // ── CarrotPilot Auto-Tuner (commit 9dd5e2c port) ──────────────────
-    {"CarrotLearningActive", PERSISTENT},      // 학습 활성화 (0=off, 1=on)
-    {"CarrotLearningAutoApply", PERSISTENT},   // P단 전환 시 추천 자동 적용 (0=off, 1=on)
-    {"CarrotTunerApplyLat", PERSISTENT},       // 조향(LAT) 추천 적용 여부 (기본 1)
-    {"CarrotTunerApplyLong", PERSISTENT},      // 가감속(LONG) 추천 적용 여부 (기본 1)
-    {"CarrotLearningData", PERSISTENT},        // 누적 학습 데이터 (JSON)
-    {"CarrotLearningRecommend", PERSISTENT},   // 추천값 (JSON)
-    {"CarrotLearningHistory", PERSISTENT},     // 적용 이력 (JSON, 최대 50)
-    {"CarrotLearningPopupReady", PERSISTENT},  // 추천 준비 신호
-    {"CarrotLearningPopupSource", PERSISTENT}, // 추천 발생 소스 ("parking")
-    {"CarrotLearningClear", PERSISTENT},       // 학습 데이터 초기화 신호
-    {"CarrotTunerFactoryReset", PERSISTENT},   // 공장초기화 신호 (commit e06a7dd): UI→onroad 학습기 재동기화
-    {"CarrotLongActuatorDelay", PERSISTENT},   // 종방향 응답 지연 학습값 (초, longcontrol 라이브 반영)
-    {"CarrotLongKf", PERSISTENT},              // 종방향 PID 피드포워드 kf 학습값 (longcontrol 라이브 반영)
-    {"LongCoastBand", PERSISTENT},             // 코스팅 데드밴드 (x100 정수, m/s², 기본 0=off; commit 10fa725 Phase9 추천·longcontrol 라이브 반영)
-    // 학습 대상 파라미터 (x100 정수 저장)
-    {"CruiseMaxVals0", PERSISTENT},            // 0~36 km/h 최대가속 (기본 180 = 1.80m/s^2)
-    {"CruiseMaxVals1", PERSISTENT},            // 36~90 km/h (기본 120)
-    {"CruiseMaxVals2", PERSISTENT},            // 90~144 km/h (기본 80)
-    {"CruiseMaxVals3", PERSISTENT},            // 144 km/h~ (기본 60)
-    {"TFollowGap1", PERSISTENT},               // GAP1 추종거리 (기본 100 = 1.00s)
-    {"TFollowGap2", PERSISTENT},               // GAP2 (기본 140)
-    {"TFollowGap3", PERSISTENT},               // GAP3 (기본 200)
-    {"TFollowGap4", PERSISTENT},               // GAP4/오토 (기본 200)
-    // ── Auto-Tuner Phase 6: 비전 커브 감속 학습 (vision_turn_controller.py) ──
-    // 모두 x100 정수 저장 (m/s^2), carrot_learning.py의 _TURN_*_DEFAULTS와 동일 기본값.
-    {"TurnEnteringDecel0", PERSISTENT},        // ENTERING 예측lat 1.3~ (기본 -10 = -0.10m/s^2)
-    {"TurnEnteringDecel1", PERSISTENT},        // ENTERING 예측lat 3.0~ (기본 -30 = -0.30m/s^2)
-    {"TurnTurningAcc0", PERSISTENT},           // TURNING 현재lat 1.5~  (기본 120 = 1.20m/s^2)
-    {"TurnTurningAcc1", PERSISTENT},           // TURNING 현재lat 10~   (기본 94  = 0.94m/s^2)
-    {"TurnTurningAcc2", PERSISTENT},           // TURNING 현재lat 12~   (기본 90  = 0.90m/s^2)
-    {"TurnTurningAcc3", PERSISTENT},           // TURNING 현재lat 14~   (기본 80  = 0.80m/s^2)
-    {"TurnTurningAcc4", PERSISTENT},           // TURNING 현재lat 16~   (기본 -10 = -0.10m/s^2)
-    {"TurnLeavingAcc", PERSISTENT},            // LEAVING 탈출가속 (기본 50 = 0.50m/s^2)
+    {"CarrotLearningActive", PERSISTENT},
+    {"CarrotLearningAutoApply", PERSISTENT},
+    {"CarrotTunerApplyLat", PERSISTENT},
+    {"CarrotTunerApplyLong", PERSISTENT},
+    {"CarrotLearningData", PERSISTENT},
+    {"CarrotLearningRecommend", PERSISTENT},
+    {"CarrotLearningHistory", PERSISTENT},
+    {"CarrotLearningPopupReady", PERSISTENT},
+    {"CarrotLearningPopupSource", PERSISTENT},
+    {"CarrotLearningClear", PERSISTENT},
+    {"CarrotTunerFactoryReset", PERSISTENT},
+    {"CarrotLongActuatorDelay", PERSISTENT},
+    {"CarrotLongKf", PERSISTENT},
+    {"LongCoastBand", PERSISTENT},
+    {"CruiseMaxVals0", PERSISTENT},
+    {"CruiseMaxVals1", PERSISTENT},
+    {"CruiseMaxVals2", PERSISTENT},
+    {"CruiseMaxVals3", PERSISTENT},
+    {"TFollowGap1", PERSISTENT},
+    {"TFollowGap2", PERSISTENT},
+    {"TFollowGap3", PERSISTENT},
+    {"TFollowGap4", PERSISTENT},
+    {"TurnEnteringDecel0", PERSISTENT},
+    {"TurnEnteringDecel1", PERSISTENT},
+    {"TurnTurningAcc0", PERSISTENT},
+    {"TurnTurningAcc1", PERSISTENT},
+    {"TurnTurningAcc2", PERSISTENT},
+    {"TurnTurningAcc3", PERSISTENT},
+    {"TurnTurningAcc4", PERSISTENT},
+    {"TurnLeavingAcc", PERSISTENT},
 };
 
 } // namespace
@@ -263,7 +260,6 @@ std::vector<std::string> Params::allKeys() const {
   return ret;
 }
 
-
 bool Params::checkKey(const std::string &key) {
   return keys.find(key) != keys.end();
 }
@@ -273,34 +269,20 @@ ParamKeyType Params::getKeyType(const std::string &key) {
 }
 
 int Params::put(const char* key, const char* value, size_t value_size) {
-  // Information about safely and atomically writing a file: https://lwn.net/Articles/457667/
-  // 1) Create temp file
-  // 2) Write data to temp file
-  // 3) fsync() the temp file
-  // 4) rename the temp file to the real name
-  // 5) fsync() the containing directory
   std::string tmp_path = params_path + "/.tmp_value_XXXXXX";
   int tmp_fd = mkstemp((char*)tmp_path.c_str());
   if (tmp_fd < 0) return -1;
 
   int result = -1;
   do {
-    // Write value to temp.
     ssize_t bytes_written = HANDLE_EINTR(write(tmp_fd, value, value_size));
     if (bytes_written < 0 || (size_t)bytes_written != value_size) {
       result = -20;
       break;
     }
-
-    // fsync to force persist the changes.
     if ((result = fsync(tmp_fd)) < 0) break;
-
     FileLock file_lock(params_path + "/.lock");
-
-    // Move temp into place.
     if ((result = rename(tmp_path.c_str(), getParamPath(key).c_str())) < 0) break;
-
-    // fsync parent directory
     result = fsync_dir(getParamPath());
   } while (false);
 
@@ -322,7 +304,6 @@ std::string Params::get(const std::string &key, bool block) {
   if (!block) {
     return util::read_file(getParamPath(key));
   } else {
-    // blocking read until successful
     params_do_exit = 0;
     void (*prev_handler_sigint)(int) = std::signal(SIGINT, params_sig_handler);
     void (*prev_handler_sigterm)(int) = std::signal(SIGTERM, params_sig_handler);
@@ -332,7 +313,7 @@ std::string Params::get(const std::string &key, bool block) {
       if (value = util::read_file(getParamPath(key)); !value.empty()) {
         break;
       }
-      util::sleep_for(100);  // 0.1 s
+      util::sleep_for(100);
     }
 
     std::signal(SIGINT, prev_handler_sigint);
