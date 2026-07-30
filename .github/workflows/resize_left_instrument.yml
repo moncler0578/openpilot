@@ -1,0 +1,89 @@
+name: Resize left instrument panel
+on:
+  push:
+    branches: [g_image]
+    paths: [.github/workflows/resize_left_instrument.yml]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: g_image
+      - name: Patch onroad instrument panel
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('selfdrive/ui/qt/onroad.cc')
+          s = p.read_text()
+          replacements = {
+'''  const QRectF instrument(32, 366, 320, 330);
+  panel(instrument, 20, 82);''': '''  // Enlarged left instrument card. speed_bg.png is drawn at its native
+  // 307 x 115 size, with enough padding to keep every item inside the card.
+  const QRectF instrument(32, 340, 350, 410);
+  panel(instrument, 22, 82);''',
+'''    QRectF r(47 + i * 99, 387, 87, 62);''': '''    QRectF r(48 + i * 107, 360, 95, 68);''',
+'''                  items[i].label, 18);''': '''                  items[i].label, 20);''',
+'''                  items[i].value, 29);''': '''                  items[i].value, 32);''',
+'''  const QRect speed_art_bounds(45, 462, 302, 113);
+  p.drawPixmap(speed_art_bounds, ic_speed_bg);
+  outlined_text(QRectF(47, 488, 145, 110), Qt::AlignHCenter | Qt::AlignVCenter,
+                QString::number(speed), 92);
+  outlined_text(QRectF(175, 489, 92, 58), Qt::AlignHCenter | Qt::AlignVCenter,
+                QString::number(set_speed > 0 && set_speed < 255 ? set_speed : 0), 50,
+                QColor(0, 230, 30));''': '''  const QRect speed_art_bounds(47, 442, 307, 115);
+  p.drawPixmap(speed_art_bounds, ic_speed_bg);
+  outlined_text(QRectF(49, 461, 154, 106), Qt::AlignHCenter | Qt::AlignVCenter,
+                QString::number(speed), 100);
+
+  // Set speed sits directly below the cruise artwork on the right side.
+  outlined_text(QRectF(205, 552, 105, 52), Qt::AlignHCenter | Qt::AlignVCenter,
+                QString::number(set_speed > 0 && set_speed < 255 ? set_speed : 0), 56,
+                QColor(0, 230, 30));''',
+'''  p.drawRoundedRect(QRectF(278, 525, 55, 64), 9, 9);
+  outlined_text(QRectF(278, 525, 55, 64), Qt::AlignHCenter | Qt::AlignVCenter,
+                gear_text, 43);''': '''  p.drawRoundedRect(QRectF(310, 490, 60, 72), 10, 10);
+  outlined_text(QRectF(310, 490, 60, 72), Qt::AlignHCenter | Qt::AlignVCenter,
+                gear_text, 48);''',
+'''  outlined_text(QRectF(45, 609, 76, 30), Qt::AlignHCenter | Qt::AlignVCenter, "LIMIT", 19);
+  outlined_text(QRectF(128, 609, 72, 30), Qt::AlignHCenter | Qt::AlignVCenter, "ROUTE", 19);
+  outlined_text(QRectF(207, 609, 72, 30), Qt::AlignHCenter | Qt::AlignVCenter, "APILOT", 16);
+  panel(QRectF(45, 642, 76, 39), 9);
+  panel(QRectF(128, 642, 72, 39), 9);
+  panel(QRectF(207, 642, 72, 39), 9);
+  outlined_text(QRectF(45, 642, 76, 39), Qt::AlignHCenter | Qt::AlignVCenter,
+                road_speed > 0 ? QString::number(road_speed) : "--", 28);''': '''  outlined_text(QRectF(48, 616, 84, 34), Qt::AlignHCenter | Qt::AlignVCenter, "LIMIT", 21);
+  outlined_text(QRectF(140, 616, 82, 34), Qt::AlignHCenter | Qt::AlignVCenter, "ROUTE", 21);
+  outlined_text(QRectF(230, 616, 82, 34), Qt::AlignHCenter | Qt::AlignVCenter, "APILOT", 18);
+  panel(QRectF(48, 654, 84, 44), 10);
+  panel(QRectF(140, 654, 82, 44), 10);
+  panel(QRectF(230, 654, 82, 44), 10);
+  outlined_text(QRectF(48, 654, 84, 44), Qt::AlignHCenter | Qt::AlignVCenter,
+                road_speed > 0 ? QString::number(road_speed) : "--", 31);''',
+'''  outlined_text(QRectF(128, 642, 72, 39), Qt::AlignHCenter | Qt::AlignVCenter,
+                route_status, 24,''': '''  outlined_text(QRectF(140, 654, 82, 44), Qt::AlignHCenter | Qt::AlignVCenter,
+                route_status, 27,''',
+'''  outlined_text(QRectF(207, 642, 72, 39), Qt::AlignHCenter | Qt::AlignVCenter,
+                is_e2e ? "E2E" : "ACC", 24,''': '''  outlined_text(QRectF(230, 654, 82, 44), Qt::AlignHCenter | Qt::AlignVCenter,
+                is_e2e ? "E2E" : "ACC", 27,''',
+'''    p.drawRoundedRect(QRectF(290, 672 - i * 9, 48, 7), 2, 2);''': '''    p.drawRoundedRect(QRectF(319, 695 - i * 11, 52, 8), 3, 3);''',
+'''      change_popup_target = QPointF(305.5, 557);''': '''      change_popup_target = QPointF(340, 526);''',
+'''      change_popup_target_size = 43;''': '''      change_popup_target_size = 48;''',
+'''      change_popup_target = QPointF(314, 654);''': '''      change_popup_target = QPointF(345, 675);''',
+'''      change_popup_target_size = 40;''': '''      change_popup_target_size = 44;''',
+          }
+          for old, new in replacements.items():
+            if old not in s:
+              raise SystemExit(f'missing expected block:\n{old}')
+            s = s.replace(old, new, 1)
+          p.write_text(s)
+      - name: Commit changes and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/resize_left_instrument.yml
+          git add selfdrive/ui/qt/onroad.cc
+          git commit -m "Resize left instrument panel and restore native speed artwork"
+          git push origin g_image
