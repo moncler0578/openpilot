@@ -5,7 +5,6 @@
 #include "selfdrive/ui/qt/offroad/settings.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/widgets/controls.h"
-#include "selfdrive/ui/ui.h"
 
 namespace {
 
@@ -21,19 +20,12 @@ protected:
         auto *list = panel->findChild<ListWidget *>();
         if (list != nullptr) {
           list->addItem(horizontal_line());
-
-          auto *toggle = new ParamControl(
+          list->addItem(new ParamControl(
               "AnimatedValuePopup",
-              "Animated Value Popup",
-              "크루즈 설정속도, 카메라 제한속도 등 주요 값이 변경될 때 온로드 화면에 애니메이션 팝업을 표시합니다.",
+              "팝업 활성화",
+              "설정속도와 제한속도 등이 변경될 때 온로드 화면에 팝업을 표시합니다.",
               "../assets/offroad/icon_shell.png",
-              panel);
-
-          QObject::connect(toggle, &ToggleControl::toggleFlipped, [](bool enabled) {
-            uiState()->setAnimatedValuePopupEnabled(enabled);
-          });
-
-          list->addItem(toggle);
+              panel));
           panel->setProperty("animatedPopupToggleAdded", true);
         }
       }
