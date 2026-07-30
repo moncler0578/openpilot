@@ -6,6 +6,7 @@
 #include <QSound>
 #include <QMouseEvent>
 #include <QDateTime>
+#include <QPainterPath>
 
 #include "selfdrive/common/timing.h"
 #include "selfdrive/ui/qt/util.h"
@@ -16,7 +17,8 @@
 
 OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   QVBoxLayout *main_layout  = new QVBoxLayout(this);
-  main_layout->setMargin(bdr_s);
+  const int vertical_border = 30;
+  main_layout->setContentsMargins(bdr_s, vertical_border, bdr_s, vertical_border);
   QStackedLayout *stacked_layout = new QStackedLayout;
   stacked_layout->setStackingMode(QStackedLayout::StackAll);
   main_layout->addLayout(stacked_layout);
@@ -260,6 +262,14 @@ void OnroadAlerts::paintEvent(QPaintEvent *event) {
 // NvgWindow
 
 NvgWindow::NvgWindow(VisionStreamType type, QWidget* parent) : last_update_params(0), fps_filter(UI_FREQ, 3, 1. / UI_FREQ), accel_filter(UI_FREQ, .5, 1. / UI_FREQ), CameraViewWidget("camerad", type, true, parent) {
+  change_popup_enabled = uiState()->animatedValuePopupEnabled();
+  QObject::connect(uiState(), &UIState::animatedValuePopupChanged, this, [this](bool enabled) {
+    change_popup_enabled = enabled;
+    change_popup_initialized = false;
+    camera_sign_initialized = false;
+    if (!change_popup_enabled) change_popup_frames = 0;
+    if (!change_popup_enabled) camera_sign_popup_frames = 0;
+  });
 }
 
 void NvgWindow::initializeGL() {
@@ -285,6 +295,7 @@ void NvgWindow::initializeGL() {
   ic_turn_signal_l = QPixmap("../assets/images/turn_signal_l.png");
   ic_turn_signal_r = QPixmap("../assets/images/turn_signal_r.png");
   ic_satellite = QPixmap("../assets/images/satellite.png");
+  ic_speed_bg = QPixmap("../assets/images/speed_bg.png");
 }
 
 void NvgWindow::updateState(const UIState &s) {	
@@ -301,6 +312,7 @@ void NvgWindow::updateState(const UIState &s) {
 
   // blind spot state sync
   auto car_state = sm["carState"].getCarState();
+  //auto controls_state = sm["controlsState"].getControlsState();
   setProperty("left_blindspot",  car_state.getLeftBlindspot());
   setProperty("right_blindspot", car_state.getRightBlindspot());
 
@@ -599,6 +611,12 @@ void NvgWindow::paintEvent(QPaintEvent *event) {
 void NvgWindow::showEvent(QShowEvent *event) {
   CameraViewWidget::showEvent(event);
 
+  change_popup_initialized = false;
+  change_popup_frames = 0;
+  camera_sign_initialized = false;
+  camera_sign_missing_frames = 0;
+  camera_sign_popup_frames = 0;
+
   auto now = millis_since_boot();
   if(now - last_update_params > 1000*5) {
     last_update_params = now;
@@ -670,8 +688,6 @@ void NvgWindow::drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model) {
 
   UIState *s = uiState();
 
-  const SubMaster &sm = *(s->sm);
-
   drawLaneLines(p, s);
 
   auto leads =  model.getLeadsV3();
@@ -683,49 +699,470 @@ void NvgWindow::drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model) {
   }
 
   drawLeadStatus(p);
-  drawMaxSpeed(p);
-  drawSpeed(p);
-  drawSpeedLimit(p);
-  drawSteer(p);
-  drawThermal(p);
-  //drawTurnSignals(p);
-  drawGpsStatus(p);
+  drawCarrotUi(p);
+}
 
-  if(s->show_debug && width() > 1200)
-    drawDebugText(p);
+void NvgWindow::drawCarrotUi(QPainter &p) {
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing);
+  p.setRenderHint(QPainter::TextAntialiasing);
+  p.setRenderHint(QPainter::SmoothPixmapTransform);
 
+  UIState *s = uiState();
+  const SubMaster &sm = *(s->sm);
+  const auto car_state = sm["carState"].getCarState();
   const auto controls_state = sm["controlsState"].getControlsState();
   const auto car_params = sm["carParams"].getCarParams();
   const auto live_params = sm["liveParameters"].getLiveParameters();
+  const auto device_state = sm["deviceState"].getDeviceState();
+  const auto road_limit = sm["roadLimitSpeed"].getRoadLimitSpeed();
+  const auto longitudinal_plan = sm["longitudinalPlan"].getLongitudinalPlan();
+
+  // The c3 UI was designed at 1440x720. Scale all HUD geometry as one unit so
+  // it keeps the same composition on EON/C2 and C3 aspect ratios.
+  const float sx = width() / 1440.0f;
+  const float sy = height() / 720.0f;
+  p.scale(sx, sy);
+
+  auto font = [&](int px, bool bold = true) {
+    configFont(p, "Open Sans", px, bold ? "Bold" : "Regular");
+    QFont hinted_font = p.font();
+    hinted_font.setHintingPreference(QFont::PreferFullHinting);
+    hinted_font.setStyleStrategy(QFont::PreferAntialias);
+    p.setFont(hinted_font);
+  };
+  auto outlined_text = [&](const QRectF &r, int flags, const QString &text, int px,
+                           const QColor &color = Qt::white) {
+    // Render text directly in device pixels. The HUD geometry is stretched
+    // from the C3's 2:1 canvas to the EON's 16:9 screen; rasterizing glyphs
+    // after that non-uniform transform makes small text look blurred.
+    const QTransform hud_transform = p.worldTransform();
+    const QRectF device_rect = hud_transform.mapRect(r);
+    const qreal text_scale = std::min(std::abs(hud_transform.m11()),
+                                      std::abs(hud_transform.m22()));
+
+    p.save();
+    p.resetTransform();
+    const int device_px = std::max(1, qRound(px * text_scale));
+    font(device_px);
+    const int draw_flags = flags | Qt::TextDontClip;
+    const qreal shadow_offset = device_px >= 40 ? 2.0 : 1.0;
+    p.setPen(QColor(0, 0, 0, 210));
+    p.drawText(device_rect.translated(shadow_offset, shadow_offset),
+               draw_flags, text);
+    p.setPen(color);
+    p.drawText(device_rect, draw_flags, text);
+    p.restore();
+  };
+  auto panel = [&](const QRectF &r, int corner_radius = 15, int background_alpha = 165) {
+    p.setPen(QPen(QColor(255, 255, 255, 210), 3));
+    p.setBrush(QColor(0, 0, 0, background_alpha));
+    p.drawRoundedRect(r, corner_radius, corner_radius);
+  };
+  auto speed_limit_sign = [&](const QPointF &center, qreal sign_radius, int speed, int text_size) {
+    const QRectF sign_rect(center.x() - sign_radius, center.y() - sign_radius,
+                           sign_radius * 2.0, sign_radius * 2.0);
+    p.setPen(QPen(QColor(220, 35, 35), std::max(6.0, sign_radius * 0.16)));
+    p.setBrush(Qt::white);
+    p.drawEllipse(sign_rect);
+    outlined_text(sign_rect.adjusted(sign_radius * 0.13, sign_radius * 0.13,
+                                     -sign_radius * 0.13, -sign_radius * 0.13),
+                  Qt::AlignHCenter | Qt::AlignVCenter,
+                  QString::number(speed), text_size, Qt::black);
+  };
+
+  QString fingerprint = QString::fromUtf8(car_params.getCarFingerprint().cStr()).toUpper();
+  if (fingerprint.isEmpty()) fingerprint = "OPENPILOT";
+  outlined_text(QRectF(20, 1, 700, 32), Qt::AlignLeft | Qt::AlignVCenter, fingerprint, 22);
+  const bool scc2_detected = car_params.getOpenpilotLongitudinalControl() || car_params.getSccBus() == 2;
+  if (scc2_detected) {
+    font(22);
+    const int fingerprint_width = QFontMetrics(p.font()).horizontalAdvance(fingerprint);
+    outlined_text(QRectF(28 + fingerprint_width, 1, 110, 32),
+                  Qt::AlignLeft | Qt::AlignVCenter, "SCC2", 22, QColor(255, 55, 55));
+  }
+
   const auto torque_state = controls_state.getLateralControlState().getTorqueState();
+  QString tune;
+  tune.sprintf("%s  LT(%.2f/%.2f), SR(%.1f)",
+               s->lat_control.c_str(), torque_state.getLatAccelFactor(),
+               torque_state.getFriction(), controls_state.getSteerRatio());
+  outlined_text(QRectF(810, 1, 390, 32), Qt::AlignRight | Qt::AlignVCenter, tune, 20);
 
-  int mdps_bus = car_params.getMdpsBus();
-  int scc_bus = car_params.getSccBus();
+  // Compact TPMS row in the otherwise unused upper-right corner.
+  const auto tpms = car_state.getTpms();
+  const float tire_pressures[] = {tpms.getFl(), tpms.getFr(), tpms.getRl(), tpms.getRr()};
+  const QString tire_labels[] = {"FL", "FR", "RL", "RR"};
+  for (int i = 0; i < 4; ++i) {
+    const bool valid = tire_pressures[i] >= 5.0f && tire_pressures[i] <= 60.0f;
+    const QColor value_color = valid && tire_pressures[i] < 31.0f
+                                   ? QColor(255, 85, 85)
+                                   : QColor(255, 255, 255);
+    const QString value = valid ? QString::number(qRound(tire_pressures[i])) : "--";
+    const int column = i % 2;
+    const int row = i / 2;
+    const qreal x = 1210 + column * 101;
+    const qreal y = row * 16;
+    outlined_text(QRectF(x, y, 30, 16), Qt::AlignRight | Qt::AlignVCenter,
+                  tire_labels[i], 11, QColor(185, 185, 185));
+    outlined_text(QRectF(x + 33, y, 48, 16), Qt::AlignLeft | Qt::AlignVCenter,
+                  value, 15, value_color);
+  }
 
-  QString infoText;
-  infoText.sprintf("%s TS(%.2f/%.2f) AO(%.2f/%.2f) SR(%.2f) SAD(%.2f) BUS(MDPS %d, SCC %d) SCC(%.2f/%.2f/%.2f)",
-                      s->lat_control.c_str(),
-	                  torque_state.getLatAccelFactor(),
-                      torque_state.getFriction(),
-                      live_params.getAngleOffsetDeg(),
-                      live_params.getAngleOffsetAverageDeg(),
-                      controls_state.getSteerRatio(),
-                      controls_state.getSteerActuatorDelay(),
-                      mdps_bus, scc_bus,
-                      controls_state.getSccGasFactor(),
-                      controls_state.getSccBrakeFactor(),
-                      controls_state.getSccCurvatureFactor()
-                      );
+  // Time/date block.
+  QDateTime now = QDateTime::currentDateTime();
+  outlined_text(QRectF(38, 34, 220, 76), Qt::AlignLeft | Qt::AlignVCenter,
+                now.toString("hh:mm"), 76);
+  outlined_text(QRectF(42, 105, 220, 50), Qt::AlignLeft | Qt::AlignVCenter,
+                now.toString("MM-dd(ddd)"), 42);
 
-  // info
+  // Left c3 instrument panel.
+  const QRectF instrument(32, 366, 320, 330);
+  panel(instrument, 20, 82);
 
-  p.save();	
-  configFont(p, "Open Sans", 34, "Regular");
-  p.setPen(QColor(0xff, 0xff, 0xff, 200));
-  p.drawText(rect().left() + 20, rect().height() - 15, infoText);
+  float cpu_temp = 0.0f;
+  const auto cpu_temps = device_state.getCpuTempC();
+  for (float temp : cpu_temps) cpu_temp += temp;
+  if (cpu_temps.size() > 0) cpu_temp /= cpu_temps.size();
+  int cpu_usage = 0;
+  const auto cpu_usage_list = device_state.getCpuUsagePercent();
+  for (int usage : cpu_usage_list) cpu_usage += usage;
+  if (cpu_usage_list.size() > 0) cpu_usage /= cpu_usage_list.size();
+  int memory_usage = device_state.getMemoryUsagePercent();
+  int disk_usage = std::clamp((int)std::round(100.0f - device_state.getFreeSpacePercent()), 0, 100);
+
+  struct DeviceItem { QString label; QString value; };
+  DeviceItem items[] = {
+    {"CPU", QString::number((int)std::round(cpu_temp)) + "°C"},
+    {"MEM", QString::number(memory_usage) + "%"},
+    {"DISK", QString::number(disk_usage) + "%"},
+  };
+  for (int i = 0; i < 3; ++i) {
+    QRectF r(47 + i * 99, 387, 87, 62);
+    p.setPen(QPen(QColor(0, 0, 0), 2));
+    p.setBrush(QColor(0, 125, 20, 225));
+    p.drawRoundedRect(r, 9, 9);
+    outlined_text(QRectF(r.left(), r.top() + 2, r.width(), 25), Qt::AlignHCenter | Qt::AlignVCenter,
+                  items[i].label, 18);
+    outlined_text(QRectF(r.left(), r.top() + 24, r.width(), 36), Qt::AlignHCenter | Qt::AlignVCenter,
+                  items[i].value, 29);
+  }
+
+  const float speed_factor = s->scene.is_metric ? MS_TO_KPH : MS_TO_MPH;
+  int speed = std::max(0, (int)std::round(car_state.getVEgoCluster() * speed_factor));
+  int set_speed = (int)std::round(controls_state.getVCruiseCluster());
+
+  // Keep the speed artwork inside the instrument panel and preserve its
+  // original aspect ratio. Drawing it before the values also keeps the digits
+  // crisp when the artwork contains translucent pixels.
+  const QRect speed_art_bounds(45, 462, 302, 113);
+  p.drawPixmap(speed_art_bounds, ic_speed_bg);
+  outlined_text(QRectF(47, 488, 145, 110), Qt::AlignHCenter | Qt::AlignVCenter,
+                QString::number(speed), 92);
+  outlined_text(QRectF(175, 489, 92, 58), Qt::AlignHCenter | Qt::AlignVCenter,
+                QString::number(set_speed > 0 && set_speed < 255 ? set_speed : 0), 50,
+                QColor(0, 230, 30));
+
+  QString gear_text = "U";
+  const auto gear_shifter = car_state.getGearShifter();
+  if (gear_shifter == cereal::CarState::GearShifter::PARK) {
+    gear_text = "P";
+  } else if (gear_shifter == cereal::CarState::GearShifter::DRIVE) {
+    const int gear_step = car_state.getGearStep();
+    gear_text = gear_step > 0 ? QString::number(gear_step) : "D";
+  } else if (gear_shifter == cereal::CarState::GearShifter::NEUTRAL) {
+    gear_text = "N";
+  } else if (gear_shifter == cereal::CarState::GearShifter::REVERSE) {
+    gear_text = "R";
+  } else if (gear_shifter == cereal::CarState::GearShifter::SPORT) {
+    gear_text = "S";
+  } else if (gear_shifter == cereal::CarState::GearShifter::LOW) {
+    gear_text = "L";
+  } else if (gear_shifter == cereal::CarState::GearShifter::BRAKE) {
+    gear_text = "B";
+  } else if (gear_shifter == cereal::CarState::GearShifter::ECO) {
+    gear_text = "E";
+  } else if (gear_shifter == cereal::CarState::GearShifter::MANUMATIC) {
+    gear_text = "M";
+  }
+  p.setPen(QPen(QColor(255, 255, 255, 220), 2));
+  p.setBrush(QColor(0, 125, 20, 225));
+  p.drawRoundedRect(QRectF(278, 525, 55, 64), 9, 9);
+  outlined_text(QRectF(278, 525, 55, 64), Qt::AlignHCenter | Qt::AlignVCenter,
+                gear_text, 43);
+
+  int road_speed = road_limit.getRoadLimitSpeed();
+  outlined_text(QRectF(45, 609, 76, 30), Qt::AlignHCenter | Qt::AlignVCenter, "LIMIT", 19);
+  outlined_text(QRectF(128, 609, 72, 30), Qt::AlignHCenter | Qt::AlignVCenter, "ROUTE", 19);
+  outlined_text(QRectF(207, 609, 72, 30), Qt::AlignHCenter | Qt::AlignVCenter, "APILOT", 16);
+  panel(QRectF(45, 642, 76, 39), 9);
+  panel(QRectF(128, 642, 72, 39), 9);
+  panel(QRectF(207, 642, 72, 39), 9);
+  outlined_text(QRectF(45, 642, 76, 39), Qt::AlignHCenter | Qt::AlignVCenter,
+                road_speed > 0 ? QString::number(road_speed) : "--", 28);
+  // A positive maneuver distance is the authoritative navigation signal.
+  // Generic/stale TMAP notification text must not open the route panel.
+  const bool tmap_tbt_active = road_limit.getTbtDist() > 0;
+  const QString route_status = tmap_tbt_active ? "APN" :
+                               road_limit.getActive() ? "NDA" : "OFF";
+  outlined_text(QRectF(128, 642, 72, 39), Qt::AlignHCenter | Qt::AlignVCenter,
+                route_status, 24,
+                road_limit.getActive() ? QColor(80, 255, 80) : QColor(210, 210, 210));
+  const bool is_e2e = longitudinal_plan.getMpcMode() == 1;
+  outlined_text(QRectF(207, 642, 72, 39), Qt::AlignHCenter | Qt::AlignVCenter,
+                is_e2e ? "E2E" : "ACC", 24,
+                is_e2e ? QColor(0, 230, 130) : QColor(220, 220, 220));
+
+  int cruise_gap = (int)controls_state.getLongCruiseGap();
+  if (cruise_gap < 1 || cruise_gap > 4) {
+    cruise_gap = (int)car_state.getCruiseGap();
+  }
+  cruise_gap = std::clamp(cruise_gap, 1, 4);
+  p.setPen(QPen(QColor(255, 255, 255, 210), 1));
+  p.setBrush(QColor(0, 180, 45, 225));
+  for (int i = 0; i < cruise_gap; ++i) {
+    p.drawRoundedRect(QRectF(290, 672 - i * 9, 48, 7), 2, 2);
+  }
+
+  // c3-style value-change popup, simplified to one animated text draw so the
+  // EON only pays the rendering cost for 12 frames after an actual change.
+  if (!change_popup_enabled) {
+    change_popup_frames = 0;
+  } else if (!change_popup_initialized) {
+    last_popup_gear = gear_text;
+    last_popup_gap = cruise_gap;
+    change_popup_initialized = true;
+  } else {
+    bool popup_triggered = false;
+    if (gear_text != last_popup_gear) {
+      change_popup_text = gear_text;
+      change_popup_target = QPointF(305.5, 557);
+      change_popup_color = QColor(255, 255, 255);
+      change_popup_target_size = 43;
+      popup_triggered = true;
+    } else if (cruise_gap != last_popup_gap) {
+      change_popup_text = QString::number(cruise_gap);
+      change_popup_target = QPointF(314, 654);
+      change_popup_color = QColor(80, 255, 80);
+      change_popup_target_size = 40;
+      popup_triggered = true;
+    }
+    if (popup_triggered) change_popup_frames = change_popup_total_frames;
+    last_popup_gear = gear_text;
+    last_popup_gap = cruise_gap;
+  }
+
+  // APilot/TMAP lightweight navigation.  Drawing a schematic route instead of
+  // running a web map keeps GPU/RAM use low enough for EON while retaining the
+  // live road name, maneuver, remaining distance and ETA.
+  const int tbt_dist = road_limit.getTbtDist();
+  const int turn_type = road_limit.getTbtTurnType();
+  const QString tbt_text = QString::fromUtf8(road_limit.getTbtMainText().cStr());
+  const QString road_name = QString::fromUtf8(road_limit.getPosRoadName().cStr());
+  const QString goal_name = QString::fromUtf8(road_limit.getGoalName().cStr());
+  const int goal_dist = road_limit.getGoPosDist();
+  const int goal_time = road_limit.getGoPosTime();
+  const bool navigation_active = road_limit.getActive() && tmap_tbt_active;
+  int limit_speed = road_limit.getCamLimitSpeed();
+  int left_dist = road_limit.getCamLimitSpeedLeftDist();
+  bool is_section = false;
+  if (limit_speed <= 0 || left_dist <= 0) {
+    limit_speed = road_limit.getSectionLimitSpeed();
+    left_dist = road_limit.getSectionLeftDist();
+    is_section = true;
+  }
+  const bool camera_sign_visible = limit_speed > 0 && left_dist > 0;
+  if (!change_popup_enabled) {
+    camera_sign_popup_frames = 0;
+  } else if (!camera_sign_initialized) {
+    camera_sign_was_visible = camera_sign_visible;
+    camera_sign_missing_frames = 0;
+    camera_sign_initialized = true;
+  } else if (camera_sign_visible) {
+    if (!camera_sign_was_visible) {
+      camera_sign_popup_frames = camera_sign_popup_total_frames;
+    }
+    camera_sign_was_visible = true;
+    camera_sign_missing_frames = 0;
+  } else if (++camera_sign_missing_frames > 10) {
+    // Ignore brief receiver dropouts so the same camera does not pop repeatedly.
+    camera_sign_was_visible = false;
+  }
+
+  qreal camera_sign_scale = 1.0;
+  if (camera_sign_popup_frames > 0) {
+    const qreal elapsed = camera_sign_popup_total_frames - camera_sign_popup_frames;
+    const qreal progress = elapsed / std::max(1, camera_sign_popup_total_frames - 1);
+    const qreal eased = 1.0 - std::pow(1.0 - progress, 3.0);
+    camera_sign_scale = 0.68 + 0.32 * eased;
+  }
+  const QString camera_distance = left_dist >= 1000
+                                      ? QString::number(left_dist / 1000.0, 'f', 1) + "km"
+                                      : QString::number(left_dist) + "m";
+
+  if (navigation_active) {
+    const QRectF nav_map(885, 28, 525, 455);
+    panel(nav_map, 22, 82);
+
+    // Dark, perspective-like road surface with a single inexpensive route
+    // path. This is intentionally vector-only: no Mapbox, tiles or textures.
+    QLinearGradient nav_bg(nav_map.topLeft(), nav_map.bottomLeft());
+    nav_bg.setColorAt(0, QColor(22, 29, 35, 112));
+    nav_bg.setColorAt(1, QColor(5, 8, 11, 118));
+    p.setPen(Qt::NoPen);
+    p.setBrush(nav_bg);
+    p.drawRoundedRect(nav_map.adjusted(3, 3, -3, -3), 19, 19);
+
+    p.save();
+    p.setClipRect(nav_map.adjusted(4, 4, -4, -4));
+    p.setPen(QPen(QColor(80, 90, 96, 150), 3));
+    for (int y = 105; y < 480; y += 72) p.drawLine(900, y, 1395, y - 25);
+
+    QPainterPath route;
+    route.moveTo(1148, 474);
+    route.cubicTo(1148, 390, 1160, 330, 1142, 270);
+    const bool left_turn = turn_type == 11 || turn_type == 16 || turn_type == 17;
+    const bool right_turn = turn_type == 12 || turn_type == 18;
+    if (left_turn) {
+      route.cubicTo(1125, 215, 1065, 205, 980, 205);
+    } else if (right_turn) {
+      route.cubicTo(1160, 215, 1225, 205, 1340, 205);
+    } else {
+      route.cubicTo(1138, 210, 1150, 140, 1150, 75);
+    }
+    p.setPen(QPen(QColor(0, 190, 105), 19, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.drawPath(route);
+    p.setPen(QPen(QColor(145, 255, 205), 5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.drawPath(route);
+
+    QPainterPath vehicle_arrow;
+    vehicle_arrow.moveTo(1148, 390);
+    vehicle_arrow.lineTo(1128, 428);
+    vehicle_arrow.lineTo(1148, 418);
+    vehicle_arrow.lineTo(1168, 428);
+    vehicle_arrow.closeSubpath();
+    p.setPen(QPen(Qt::white, 3));
+    p.setBrush(QColor(220, 230, 235));
+    p.drawPath(vehicle_arrow);
+    p.restore();
+
+    if (!road_name.isEmpty()) {
+      outlined_text(QRectF(905, 42, 485, 42), Qt::AlignHCenter | Qt::AlignVCenter,
+                    road_name, 31);
+    }
+
+    // Keep camera/section distance visible while APilot TBT navigation is active.
+    if (limit_speed > 0 && left_dist > 0) {
+      const QRectF camera_cue(1190, 95, 200, 96);
+      panel(camera_cue, 14);
+      speed_limit_sign(QPointF(1237, 143), 35 * camera_sign_scale, limit_speed,
+                       qRound(39 * camera_sign_scale));
+      outlined_text(QRectF(1273, 101, 108, 36), Qt::AlignHCenter | Qt::AlignVCenter,
+                    is_section ? "SECTION" : "CAMERA", 22);
+      outlined_text(QRectF(1273, 137, 108, 42), Qt::AlignHCenter | Qt::AlignVCenter,
+                    camera_distance, 32);
+    }
+
+    const QRectF nav_card(885, 490, 525, 198);
+    panel(nav_card, 20, 82);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 165, 40, 235));
+    p.drawRoundedRect(QRectF(900, 512, 108, 156), 12, 12);
+
+    // Maneuver arrow (T map codes: 11 left, 12 right, 13 U-turn).
+    QPainterPath turn_arrow;
+    if (turn_type == 11 || turn_type == 16 || turn_type == 17) {
+      turn_arrow.moveTo(980, 578); turn_arrow.lineTo(940, 578);
+      turn_arrow.lineTo(940, 548); turn_arrow.lineTo(914, 580);
+      turn_arrow.lineTo(940, 612); turn_arrow.lineTo(940, 592);
+      turn_arrow.lineTo(980, 592);
+    } else if (turn_type == 12 || turn_type == 18) {
+      turn_arrow.moveTo(925, 578); turn_arrow.lineTo(965, 578);
+      turn_arrow.lineTo(965, 548); turn_arrow.lineTo(992, 580);
+      turn_arrow.lineTo(965, 612); turn_arrow.lineTo(965, 592);
+      turn_arrow.lineTo(925, 592);
+    } else if (turn_type == 13) {
+      turn_arrow.moveTo(975, 610); turn_arrow.cubicTo(980, 550, 920, 548, 925, 595);
+      turn_arrow.moveTo(908, 576); turn_arrow.lineTo(925, 600); turn_arrow.lineTo(945, 579);
+    } else {
+      turn_arrow.moveTo(954, 620); turn_arrow.lineTo(954, 552);
+      turn_arrow.moveTo(930, 575); turn_arrow.lineTo(954, 548); turn_arrow.lineTo(978, 575);
+    }
+    p.setPen(QPen(Qt::white, 13, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(turn_arrow);
+
+    QString tbt_distance = tbt_dist >= 1000 ? QString::number(tbt_dist / 1000.0, 'f', 1) + " km"
+                                             : QString::number(tbt_dist) + " m";
+    outlined_text(QRectF(905, 625, 98, 35), Qt::AlignHCenter | Qt::AlignVCenter,
+                  tbt_distance, 25);
+    outlined_text(QRectF(1025, 510, 360, 60), Qt::AlignLeft | Qt::AlignVCenter,
+                  !tbt_text.isEmpty() ? tbt_text : road_name, 35);
+
+    QString remain;
+    if (goal_dist > 0) {
+      remain = goal_dist >= 1000 ? QString::number(goal_dist / 1000.0, 'f', 1) + " km"
+                                 : QString::number(goal_dist) + " m";
+    }
+    if (goal_time > 0) {
+      const int minutes = std::max(1, goal_time / 60);
+      remain = QString("도착 %1분  ").arg(minutes) + remain;
+    }
+    outlined_text(QRectF(1025, 570, 360, 50), Qt::AlignLeft | Qt::AlignVCenter,
+                  remain, 30);
+    outlined_text(QRectF(1025, 625, 360, 40), Qt::AlignLeft | Qt::AlignVCenter,
+                  !goal_name.isEmpty() ? goal_name : road_name, 27, QColor(220, 220, 220));
+  }
+
+  // Larger camera/section notification is used when APilot has no active TBT route.
+  if (!navigation_active && limit_speed > 0 && left_dist > 0) {
+    QRectF cue(1000, 500, 380, 165);
+    panel(cue, 18);
+    speed_limit_sign(QPointF(1080, 560), 51 * camera_sign_scale, limit_speed,
+                     qRound(57 * camera_sign_scale));
+    outlined_text(QRectF(1150, 520, 205, 55), Qt::AlignLeft | Qt::AlignVCenter,
+                  is_section ? "SECTION" : "CAMERA", 31);
+    outlined_text(QRectF(1150, 575, 205, 55), Qt::AlignLeft | Qt::AlignVCenter,
+                  camera_distance, 47);
+  }
+  if (camera_sign_popup_frames > 0) --camera_sign_popup_frames;
+
+  // c3 diagnostic footer.
+  QString footer;
+  footer.sprintf("lanemode  %.1fm | %.1fm | offset=%+.1fcm  turn→%dkm/h",
+                 s->scene.lane_line_probs[1] * 3.0f,
+                 s->scene.lane_line_probs[2] * 3.0f,
+                 live_params.getAngleOffsetDeg() * 10.0f,
+                 road_speed);
+  p.setPen(Qt::NoPen);
+  p.setBrush(QColor(0, 0, 0, 165));
+  p.drawRect(QRectF(355, 696, 805, 23));
+  outlined_text(QRectF(360, 696, 795, 23), Qt::AlignHCenter | Qt::AlignVCenter,
+                footer, 19);
+
+  QString wifi_address = QString::fromUtf8(device_state.getWifiIpAddress().cStr()).trimmed();
+  if (wifi_address.isEmpty() || wifi_address == "N/A") {
+    wifi_address = "--";
+  }
+  outlined_text(QRectF(1170, 690, 245, 28), Qt::AlignRight | Qt::AlignVCenter,
+                "WIFI " + wifi_address, 18);
+
+  if (change_popup_frames > 0) {
+    const float elapsed = change_popup_total_frames - change_popup_frames;
+    const float progress = elapsed / std::max(1, change_popup_total_frames - 1);
+    const float eased = 1.0f - std::pow(1.0f - progress, 3.0f);
+    const QPointF start(720, 350);
+    const QPointF center(start.x() + (change_popup_target.x() - start.x()) * eased,
+                         start.y() + (change_popup_target.y() - start.y()) * eased);
+    const int popup_size = qRound(200 + (change_popup_target_size - 200) * eased);
+    const QRectF popup_rect(center.x() - 220, center.y() - popup_size * 0.7,
+                            440, popup_size * 1.4);
+    outlined_text(popup_rect, Qt::AlignHCenter | Qt::AlignVCenter,
+                  change_popup_text, popup_size, change_popup_color);
+    --change_popup_frames;
+  }
+
   p.restore();
-
-  drawBottomIcons(p);
 }
 
 static const QColor get_tpms_color(float tpms) {
@@ -749,7 +1186,7 @@ void NvgWindow::drawBottomIcons(QPainter &p) {
   p.save();
   const SubMaster &sm = *(uiState()->sm);
   auto car_state = sm["carState"].getCarState();
-  auto scc_smoother = sm["carControl"].getCarControl().getSccSmoother();
+  const auto controls_state = sm["controlsState"].getControlsState();
 
   // tire pressure
   {
@@ -787,9 +1224,16 @@ void NvgWindow::drawBottomIcons(QPainter &p) {
   const int y = rect().bottom() - footer_h / 2 - 10;
 
   // cruise gap
-  int gap = car_state.getCruiseGap();
-  bool longControl = scc_smoother.getLongControl();
-  int autoTrGap = scc_smoother.getAutoTrGap();
+  static int last_valid_gap = 4;
+  int gap = (int)controls_state.getLongCruiseGap();
+  if (gap < 1 || gap > 4) {
+    gap = (int)car_state.getCruiseGap();
+  }
+  if (gap >= 1 && gap <= 4) {
+    last_valid_gap = gap;
+  } else {
+    gap = last_valid_gap;
+  }
 
   p.setOpacity(1.0);
   p.setPen(Qt::NoPen);
@@ -802,10 +1246,6 @@ void NvgWindow::drawBottomIcons(QPainter &p) {
 
   if(gap <= 0) {
     str = "N/A";
-  }
-  else if(longControl && gap == autoTrGap) {
-    str = "AUTO";
-    textColor = QColor(120, 255, 120, 200);
   }
   else {
     str.sprintf("%d", (int)gap);
@@ -870,14 +1310,18 @@ void NvgWindow::drawMaxSpeed(QPainter &p) {
   p.save();
   UIState *s = uiState();
   const SubMaster &sm = *(s->sm);
-  const auto scc_smoother = sm["carControl"].getCarControl().getSccSmoother();
+  const auto controls_state = sm["controlsState"].getControlsState();
+  const auto car_control = sm["carControl"].getCarControl();
   bool is_metric = s->scene.is_metric;
-  bool long_control = scc_smoother.getLongControl();
+  bool long_control = s->scene.longitudinal_control;
 
   // kph
-  float applyMaxSpeed = scc_smoother.getApplyMaxSpeed();
-  float cruiseMaxSpeed = scc_smoother.getCruiseMaxSpeed();
-  bool is_cruise_set = (cruiseMaxSpeed > 0 && cruiseMaxSpeed < 255);
+  float applyMaxSpeed = controls_state.getVCruise();
+  float cruiseMaxSpeed = controls_state.getVCruiseCluster();
+  // Show the values only while longitudinal control is actually active.
+  // vCruiseCluster can be initialized while only lateral control is active.
+  bool is_cruise_set = car_control.getLongActive() &&
+                       (cruiseMaxSpeed > 0 && cruiseMaxSpeed < 255);
 
   QRect rc(30, 30, 184, 202);
   p.setPen(QPen(QColor(0xff, 0xff, 0xff, 100), 10));
@@ -987,6 +1431,23 @@ void NvgWindow::drawSpeedLimit(QPainter &p) {
 
       p.setOpacity(1.f);
       p.drawPixmap(x, y, w, h, activeNDA == 1 ? ic_nda : ic_hda);
+  }
+
+  // APilot: E2E/ACC 모드 텍스트 (NDA/HDA 아이콘 옆에 표시)
+  {
+    auto longitudinalPlan = sm["longitudinalPlan"].getLongitudinalPlan();
+    bool isE2E = longitudinalPlan.getMpcMode() == 1;
+    QString modeText = isE2E ? "E2E" : "ACC";
+    QColor modeColor = isE2E ? QColor(0, 230, 130, 220) : QColor(230, 230, 230, 220);
+
+    int ndaW = 120;
+    int ndaX = (width() + (bdr_s*2))/2 - ndaW/2 - bdr_s;
+    int ndaY = 40 - bdr_s;
+    int textX = ndaX + ndaW + 60;
+    int textY = ndaY + 27;
+
+    configFont(p, "Open Sans", 40, "Bold");
+    drawTextWithColor(p, textX, textY, modeText, modeColor);
   }
 
   if(limit_speed > 10 && limit_speed < 130)
@@ -1373,3 +1834,4 @@ void NvgWindow::drawDebugText(QPainter &p) {
 
   p.restore();
 }
+

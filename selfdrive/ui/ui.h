@@ -129,7 +129,14 @@ public:
   inline bool engaged() const {
     return scene.started && (*sm)["controlsState"].getControlsState().getEnabled();
   };
+  inline bool animatedValuePopupEnabled() const {
+    return animated_value_popup_enabled;
+  };
 
+public slots:
+  void setAnimatedValuePopupEnabled(bool enabled);
+
+public:
   int fb_w = 0, fb_h = 0;
 
   std::unique_ptr<SubMaster> sm;
@@ -150,6 +157,7 @@ public:
 signals:
   void uiUpdate(const UIState &s);
   void offroadTransition(bool offroad);
+  void animatedValuePopupChanged(bool enabled);
 
 private slots:
   void update();
@@ -157,6 +165,7 @@ private slots:
 private:
   QTimer *timer;
   bool started_prev = false;
+  bool animated_value_popup_enabled = true;
 };
 
 UIState *uiState();

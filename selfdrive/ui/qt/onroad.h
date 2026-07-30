@@ -98,6 +98,26 @@ protected:
   QPixmap ic_turn_signal_l;
   QPixmap ic_turn_signal_r;
   QPixmap ic_satellite;
+  QPixmap ic_speed_bg;
+
+  // Lightweight c3-style value-change popup for EON.
+  bool change_popup_enabled = true;
+  bool change_popup_initialized = false;
+  QString last_popup_gear;
+  int last_popup_gap = 0;
+  QString change_popup_text;
+  QPointF change_popup_target;
+  QColor change_popup_color = Qt::white;
+  int change_popup_target_size = 40;
+  int change_popup_frames = 0;
+  const int change_popup_total_frames = 12;
+
+  // Pop the speed-limit sign once when a new camera/section is detected.
+  bool camera_sign_initialized = false;
+  bool camera_sign_was_visible = false;
+  int camera_sign_missing_frames = 0;
+  int camera_sign_popup_frames = 0;
+  const int camera_sign_popup_total_frames = 15;
 
   void drawMaxSpeed(QPainter &p);
   void drawSpeed(QPainter &p);
@@ -109,6 +129,7 @@ protected:
   void drawGpsStatus(QPainter &p);
   void drawDebugText(QPainter &p);
   void drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model);
+  void drawCarrotUi(QPainter &p);
 };
 
 // container for all onroad widgets

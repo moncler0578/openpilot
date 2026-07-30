@@ -247,17 +247,25 @@ UIState::UIState(QObject *parent) : QObject(parent) {
     "modelV2", "controlsState", "liveCalibration", "radarState", "deviceState", "roadCameraState",
     "pandaStates", "carParams", "driverMonitoringState", "sensorEvents", "carState", "liveLocationKalman",
     "wideRoadCameraState",
-    "gpsLocationExternal", "carControl", "liveParameters", "roadLimitSpeed", "lateralPlan",
+    "gpsLocationExternal", "carControl", "liveParameters", "roadLimitSpeed", "lateralPlan", "longitudinalPlan",
   });
 
   Params params;
   wide_camera = Hardware::TICI() ? params.getBool("EnableWideCamera") : false;
   prime_type = std::atoi(params.get("PrimeType").c_str());
+  animated_value_popup_enabled = params.getBool("AnimatedValuePopup");
 
   // update timer
   timer = new QTimer(this);
   QObject::connect(timer, &QTimer::timeout, this, &UIState::update);
   timer->start(1000 / UI_FREQ);
+}
+
+void UIState::setAnimatedValuePopupEnabled(bool enabled) {
+  if (animated_value_popup_enabled != enabled) {
+    animated_value_popup_enabled = enabled;
+    emit animatedValuePopupChanged(enabled);
+  }
 }
 
 void UIState::update() {
