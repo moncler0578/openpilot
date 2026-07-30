@@ -1,0 +1,47 @@
+name: Fix VIP popup toggle
+
+on:
+  push:
+    branches: [g_image]
+    paths: [.github/workflows/fix_vip_popup.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: g_image
+          fetch-depth: 0
+      - name: Restore settings.cc and add VIP toggle
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          base = Path('selfdrive/ui/qt/offroad/settings_base.cc')
+          target = Path('selfdrive/ui/qt/offroad/settings.cc')
+          text = base.read_text(encoding='utf-8')
+
+          marker = '  list->addItem(chevron_info);\n'
+          addition = '''  list->addItem(chevron_info);\n\n  list->addItem(horizontal_line());\n  list->addItem(new ParamControl(\n      "AnimatedValuePopup",\n      "팝업 활성화",\n      "온로드 화면의 값 변경 팝업을 활성화합니다.",\n      "../assets/offroad/icon_shell.png",\n      this));\n'''
+
+          if marker not in text:
+            raise SystemExit('VIP ChevronInfo insertion point not found')
+          if '"AnimatedValuePopup"' not in text:
+            text = text.replace(marker, addition, 1)
+
+          target.write_text(text, encoding='utf-8')
+          base.unlink()
+
+          workflow = Path('.github/workflows/fix_vip_popup.yml')
+          workflow.unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add popup toggle directly to VIP panel"
+          git push origin HEAD:g_image
