@@ -67,6 +67,12 @@ def manager_init() -> None:
     ("WideCameraOnly", "0"),       # plannerd.py 크래시 수정
     ("ShowGearAnimation", "1"),
     ("ShowCarrotHud", "1"),
+    # Camera-free TURZX dashboard for EON. Explicit opt-in keeps existing
+    # installations unchanged until the powered USB setup is verified.
+    ("EonClusterHud", "0"),
+    ("EonClusterHudFps", "10"),
+    ("EonClusterHudBrightness", "65"),
+    ("EonClusterHudJpegQuality", "58"),
     ("CustomSteerRatio", "1650"),
     ("UseLiveSteerRatio", "0"),
     ("SteerActuatorDelay", "50"),
