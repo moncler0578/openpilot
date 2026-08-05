@@ -6,6 +6,7 @@ from common.params import Params
 
 from selfdrive.eon_cluster.renderer import HudRenderer, read_navi_state
 from selfdrive.eon_cluster.scene import extract_driving_scene
+from selfdrive.eon_cluster.trip import TripTracker
 PARAM_ENABLED = "EonClusterHud"
 PARAM_CONNECTED = "EonClusterHudConnected"
 PARAM_BRIGHTNESS = "EonClusterHudBrightness"
@@ -45,6 +46,7 @@ def main():
   renderer = None
   next_connect = 0.0
   next_frame = 0.0
+  trip = TripTracker()
 
   try:
     while running[0]:
@@ -95,12 +97,29 @@ def main():
       sm.update(0)
       car_state = sm["carState"]
       controls_state = sm["controlsState"]
+      device_state = sm["deviceState"]
       speed_mps = float(_field(car_state, "vEgoCluster", _field(car_state, "vEgo", 0.0)))
       cruise_kph = float(_field(controls_state, "vCruiseCluster", _field(controls_state, "vCruise", 0.0)))
       enabled = bool(_field(controls_state, "enabled", False))
       try:
         scene = extract_driving_scene(sm["modelV2"], sm["radarState"])
-        frame = renderer.render(speed_mps * 3.6, cruise_kph, enabled, read_navi_state(), scene)
+        speed_kph = speed_mps * 3.6
+        trip.update(bool(_field(device_state, "started", False)), speed_kph, now)
+        tpms = _field(car_state, "tpms")
+        scene["tpms"] = {key: _field(tpms, key, None) for key in ("fl", "fr", "rl", "rr")}
+        scene["driving_mode"] = _param_int(params, "MyDrivingMode", 3, 1, 4)
+        scene["panel_layout"] = _param_int(params, "EonClusterHudPanelLayout", 0, 0, 1)
+        gear = str(_field(car_state, "gearShifter", "")).lower()
+        scene["parked"] = gear in ("p", "park") or gear.endswith(".park")
+        scene["trip_report"] = trip.snapshot()
+        alert_text1 = str(_field(controls_state, "alertText1", "") or "")
+        if alert_text1:
+          scene["alert"] = {
+            "text1": alert_text1,
+            "text2": str(_field(controls_state, "alertText2", "") or ""),
+            "status": str(_field(controls_state, "alertStatus", "")),
+          }
+        frame = renderer.render(speed_kph, cruise_kph, enabled, read_navi_state(), scene)
         display.send_jpeg(renderer.encode_portrait_jpeg(frame))
       except Exception as exc:
         print("EON cluster USB frame failed: %s" % exc, flush=True)

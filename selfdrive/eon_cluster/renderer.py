@@ -181,6 +181,65 @@ class HudRenderer(object):
                  outline=(220, 45, 45), width=max(6, radius // 6))
     draw.text((x, y), str(limit), font=_font(max(24, radius), True), fill=(20, 20, 20), anchor="mm")
 
+  def _draw_driving_mode(self, draw, box, mode):
+    modes = {
+      1: ("ECO", (40, 210, 125)),
+      2: ("SAFE", (255, 169, 45)),
+      3: ("NORM", (235, 240, 245)),
+      4: ("FAST", (235, 70, 70)),
+    }
+    if mode not in modes:
+      return
+    label, color = modes[mode]
+    left, top, right, _ = box
+    x = (left + right) // 2
+    draw.rounded_rectangle((x - 58, top + 15, x + 58, top + 58), radius=12,
+                           fill=(18, 25, 33), outline=color, width=2)
+    draw.text((x, top + 36), label, font=_font(max(17, self.height // 23), True),
+              fill=color, anchor="mm")
+
+  def _draw_tpms(self, draw, box, tpms):
+    if not tpms:
+      return
+    values = [tpms.get(key) for key in ("fl", "fr", "rl", "rr")]
+    valid = [value for value in values if value is not None and 5.0 <= float(value) <= 60.0]
+    if not valid:
+      return
+    _, _, right, bottom = box
+    center_x = right - max(88, self.width // 25)
+    center_y = bottom - max(78, self.height // 6)
+    car_w = max(28, self.height // 12)
+    car_h = max(64, self.height // 5)
+    draw.rounded_rectangle((center_x - car_w // 2, center_y - car_h // 2,
+                            center_x + car_w // 2, center_y + car_h // 2),
+                           radius=8, fill=(28, 35, 43), outline=(90, 105, 118), width=2)
+    offsets = ((-55, -32), (55, -32), (-55, 32), (55, 32))
+    for value, (dx, dy) in zip(values, offsets):
+      is_valid = value is not None and 5.0 <= float(value) <= 60.0
+      text = str(int(round(float(value)))) if is_valid else "--"
+      color = (235, 70, 70) if is_valid and float(value) < 31.0 else (220, 228, 234)
+      draw.text((center_x + dx, center_y + dy), text,
+                font=_font(max(16, self.height // 24), True), fill=color, anchor="mm")
+
+  def _draw_alert(self, draw, alert):
+    if not alert or not alert.get("text1"):
+      return
+    status = str(alert.get("status", "")).lower()
+    critical = status in ("critical", "2") or "critical" in status
+    color = (225, 55, 55) if critical else (255, 169, 45)
+    height = max(105, int(self.height * 0.31))
+    top = (self.height - height) // 2
+    margin = max(34, self.width // 32)
+    draw.rounded_rectangle((margin, top, self.width - margin, top + height), radius=22,
+                           fill=(10, 14, 19), outline=color, width=max(4, self.height // 80))
+    text1 = str(alert.get("text1", ""))
+    text2 = str(alert.get("text2", ""))
+    draw.text((self.width // 2, top + int(height * 0.38)), text1,
+              font=_font(max(30, self.height // 10), True), fill=(250, 250, 250), anchor="mm")
+    if text2:
+      draw.text((self.width // 2, top + int(height * 0.73)), text2,
+                font=_font(max(20, self.height // 16), True), fill=(205, 215, 222), anchor="mm")
+
   def _draw_driving_panel(self, image, draw, box, speed_kph, cruise_kph, enabled, limit, scene):
     left, top, right, bottom = box
     draw.rectangle(box, fill=(6, 10, 16))
@@ -218,6 +277,8 @@ class HudRenderer(object):
     draw.text((left + int((right - left) * 0.24), speed_y - max(34, self.height // 9)), "SET " + cruise,
               font=_font(max(22, self.height // 13), True), fill=status_color, anchor="ls")
     self._draw_speed_limit(draw, left + 70, top + 72, limit)
+    self._draw_driving_mode(draw, box, int(scene.get("driving_mode", 0) or 0))
+    self._draw_tpms(draw, box, scene.get("tpms"))
     draw.text((right - 22, top + 24), "LIGHT 3D",
               font=_font(max(14, self.height // 28)), fill=(115, 132, 145), anchor="ra")
 
@@ -264,17 +325,59 @@ class HudRenderer(object):
       draw.text((left + 32, bottom - 39), remain, font=_font(max(16, self.height // 20), True),
                 fill=(205, 215, 222), anchor="lm")
 
+  def _draw_trip_report(self, draw, box, report):
+    left, top, right, bottom = box
+    draw.rectangle(box, fill=(7, 12, 18))
+    title_size = max(24, self.height // 12)
+    body_size = max(19, self.height // 18)
+    draw.text(((left + right) // 2, top + 42), "DRIVING REPORT",
+              font=_font(title_size, True), fill=(235, 240, 245), anchor="mm")
+    duration_s = max(0.0, float(report.get("duration_s", 0.0) or 0.0))
+    distance_km = max(0.0, float(report.get("distance_m", 0.0) or 0.0)) / 1000.0
+    rows = (
+      ("TIME", "%02d:%02d" % (int(duration_s) // 3600, (int(duration_s) // 60) % 60)),
+      ("DIST", "%.1f km" % distance_km),
+      ("AVG", "%.0f km/h" % float(report.get("average_speed_kph", 0.0) or 0.0)),
+      ("MAX", "%.0f km/h" % float(report.get("max_speed_kph", 0.0) or 0.0)),
+    )
+    card_left, card_right = left + 24, right - 24
+    row_h = max(58, (bottom - top - 92) // len(rows))
+    for index, (label, value) in enumerate(rows):
+      row_top = top + 72 + index * row_h
+      draw.rounded_rectangle((card_left, row_top, card_right, row_top + row_h - 8), radius=12,
+                             fill=(16, 23, 32), outline=(55, 68, 80), width=2)
+      draw.text((card_left + 18, row_top + (row_h - 8) // 2), label,
+                font=_font(body_size, True), fill=(145, 158, 168), anchor="lm")
+      draw.text((card_right - 18, row_top + (row_h - 8) // 2), value,
+                font=_font(body_size, True), fill=(235, 240, 245), anchor="rm")
+
   def render(self, speed_kph, cruise_kph, enabled, navi=None, scene=None):
     navi = navi or {}
+    scene = scene or {}
     image = Image.new("RGB", (self.width, self.height), (5, 8, 12))
     draw = ImageDraw.Draw(image)
     divider = int(self.width * self.DRIVE_RATIO)
     speed_state = navi.get("speed") or {}
     limit = int(speed_state.get("road_limit_kph", 0) or 0)
-    self._draw_driving_panel(image, draw, (0, 0, divider - 3, self.height),
+    panel_layout = int(scene.get("panel_layout", 0) or 0)
+    driving_box = (0, 0, divider - 3, self.height)
+    info_box = (divider + 3, 0, self.width, self.height)
+    if panel_layout == 1:
+      info_width = self.width - divider
+      info_box = (0, 0, info_width - 3, self.height)
+      driving_box = (info_width + 3, 0, self.width, self.height)
+    self._draw_driving_panel(image, draw, driving_box,
                              speed_kph, cruise_kph, enabled, limit, scene)
-    draw.rectangle((divider - 3, 0, divider + 3, self.height), fill=(34, 42, 50))
-    self._draw_navi_panel(image, draw, (divider + 3, 0, self.width, self.height), navi)
+    if panel_layout == 1:
+      split = self.width - divider
+      draw.rectangle((split - 3, 0, split + 3, self.height), fill=(34, 42, 50))
+    else:
+      draw.rectangle((divider - 3, 0, divider + 3, self.height), fill=(34, 42, 50))
+    if scene.get("parked") and scene.get("trip_report"):
+      self._draw_trip_report(draw, info_box, scene["trip_report"])
+    else:
+      self._draw_navi_panel(image, draw, info_box, navi)
+    self._draw_alert(draw, scene.get("alert"))
     return image
 
   def encode_portrait_jpeg(self, image):

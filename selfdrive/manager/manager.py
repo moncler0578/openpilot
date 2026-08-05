@@ -75,6 +75,7 @@ def manager_init() -> None:
     ("EonClusterHudFps", "10"),
     ("EonClusterHudBrightness", "65"),
     ("EonClusterHudJpegQuality", "58"),
+    ("EonClusterHudPanelLayout", "0"),
     ("CustomSteerRatio", "1650"),
     ("UseLiveSteerRatio", "0"),
     ("SteerActuatorDelay", "50"),

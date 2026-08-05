@@ -40,3 +40,24 @@ def test_lightweight_scene_uses_camera_free_vector_path():
   frame = renderer.render(82.0, 90.0, True, {"speed": {"road_limit_kph": 80}}, scene)
   assert frame.size == (1920, 462)
   assert (25, 104, 205) in set(frame.getdata())
+
+
+def test_cluster_overlays_and_swapped_layout_render():
+  renderer = HudRenderer(1920, 462, 50)
+  scene = {
+    "driving_mode": 1,
+    "tpms": {"fl": 30.0, "fr": 35.0, "rl": 36.0, "rr": 37.0},
+    "panel_layout": 1,
+    "parked": True,
+    "trip_report": {"duration_s": 3600, "distance_m": 42000, "average_speed_kph": 42, "max_speed_kph": 101},
+  }
+  frame = renderer.render(82.0, 90.0, True, {}, scene)
+  colors = set(frame.getdata())
+  assert frame.size == (1920, 462)
+  assert (40, 210, 125) in colors
+  assert any(red > 200 and green < 80 and blue < 80 for red, green, blue in colors)
+
+  scene["alert"] = {"text1": "TAKE CONTROL", "text2": "System Unresponsive", "status": "critical"}
+  alert_frame = renderer.render(82.0, 90.0, True, {}, scene)
+  colors = set(alert_frame.getdata())
+  assert (225, 55, 55) in colors

@@ -2706,6 +2706,11 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
       "외부 클러스터 화면의 JPEG 품질입니다. 값 변경 후 HUD를 껐다 켜면 적용됩니다.",
       "../assets/offroad/icon_road.png", 35, 75, 1, 0, 58, this));
 
+  list->addItem(new ParamValueControlF("EonClusterHudPanelLayout",
+      "클러스터 HUD 패널 배치",
+      "0: 주행 화면 왼쪽 / 1: 주행 화면 오른쪽. 주행 중에도 즉시 변경됩니다.",
+      "../assets/offroad/icon_road.png", 0, 1, 1, 0, 0, this));
+
   // ── CarrotPilot Auto-Tuner (commit 9dd5e2c port) ─────────────
   list->addItem(horizontal_line());
 

@@ -30,3 +30,5 @@ def test_external_hud_params_are_exposed_in_settings():
   assert '"../assets/offroad/icon_road.png", 10, 100, 5, 0, 65' in settings
   assert 'ParamValueControlF("EonClusterHudJpegQuality"' in settings
   assert '"../assets/offroad/icon_road.png", 35, 75, 1, 0, 58' in settings
+  assert 'ParamValueControlF("EonClusterHudPanelLayout"' in settings
+  assert '"../assets/offroad/icon_road.png", 0, 1, 1, 0, 0' in settings

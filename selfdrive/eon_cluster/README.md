@@ -21,6 +21,7 @@ p.put_bool("EonClusterHud", True)
 p.put("EonClusterHudFps", "10")
 p.put("EonClusterHudBrightness", "65")
 p.put("EonClusterHudJpegQuality", "58")
+p.put("EonClusterHudPanelLayout", "0")
 PY
 ```
 
@@ -28,6 +29,12 @@ The left 60% of the display is a lightweight synthetic driving scene with
 model lanes, the planned path, radar leads, current speed, cruise speed, and
 road speed limit. The right 40% keeps the TMap map, turn guidance, lane image,
 and remaining distance. No road-camera pixels are copied or encoded.
+
+The lightweight HUD also mirrors active openpilot alerts, shows Hyundai/Kia
+TPMS values and the current ECO/SAFE/NORM/FAST driving mode, and replaces the
+navigation panel with a trip summary while the vehicle is in Park. Set
+`EonClusterHudPanelLayout` to `1` to move the driving view to the right and the
+information panel to the left.
 
 Start at 10 FPS. The accepted FPS range is deliberately limited to 5-15 FPS
 to protect EON thermal and scheduling headroom. Camera rendering, OpenGL scene
