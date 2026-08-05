@@ -1,8 +1,9 @@
 # EON TURZX HUD
 
-Low-load external HUD for the EON `g_c2hud` branch. It reuses the existing
-TMap receiver outputs in `/dev/shm` and sends a camera-free JPEG dashboard to a
-supported TURZX USB display.
+Low-load external HUD for the EON `g_c2hud` branch. It renders a camera-free
+driving scene from `modelV2` and `radarState`, reuses the existing TMap receiver
+outputs in `/dev/shm`, and sends the combined JPEG dashboard to a supported
+TURZX USB display.
 
 Supported devices:
 
@@ -23,10 +24,15 @@ p.put("EonClusterHudJpegQuality", "58")
 PY
 ```
 
+The left 60% of the display is a lightweight synthetic driving scene with
+model lanes, the planned path, radar leads, current speed, cruise speed, and
+road speed limit. The right 40% keeps the TMap map, turn guidance, lane image,
+and remaining distance. No road-camera pixels are copied or encoded.
+
 Start at 10 FPS. The accepted FPS range is deliberately limited to 5-15 FPS
-to protect EON thermal and scheduling headroom. Camera rendering and software
-H.264 are intentionally excluded. The display is dimmed when the process is
-disabled or stopped.
+to protect EON thermal and scheduling headroom. Camera rendering, OpenGL scene
+capture, and software H.264 are intentionally excluded. The display is dimmed
+when the process is disabled or stopped.
 
 `EonClusterHudConnected` reports the live USB connection state. The process
 waits without rendering while the display is absent and retries every 5 seconds.

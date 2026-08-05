@@ -5,6 +5,7 @@ import cereal.messaging as messaging
 from common.params import Params
 
 from selfdrive.eon_cluster.renderer import HudRenderer, read_navi_state
+from selfdrive.eon_cluster.scene import extract_driving_scene
 PARAM_ENABLED = "EonClusterHud"
 PARAM_CONNECTED = "EonClusterHudConnected"
 PARAM_BRIGHTNESS = "EonClusterHudBrightness"
@@ -39,7 +40,7 @@ def main():
 
   signal.signal(signal.SIGINT, stop)
   signal.signal(signal.SIGTERM, stop)
-  sm = messaging.SubMaster(["carState", "controlsState", "deviceState"])
+  sm = messaging.SubMaster(["carState", "controlsState", "deviceState", "modelV2", "radarState"])
   display = None
   renderer = None
   next_connect = 0.0
@@ -98,7 +99,8 @@ def main():
       cruise_kph = float(_field(controls_state, "vCruiseCluster", _field(controls_state, "vCruise", 0.0)))
       enabled = bool(_field(controls_state, "enabled", False))
       try:
-        frame = renderer.render(speed_mps * 3.6, cruise_kph, enabled, read_navi_state())
+        scene = extract_driving_scene(sm["modelV2"], sm["radarState"])
+        frame = renderer.render(speed_mps * 3.6, cruise_kph, enabled, read_navi_state(), scene)
         display.send_jpeg(renderer.encode_portrait_jpeg(frame))
       except Exception as exc:
         print("EON cluster USB frame failed: %s" % exc, flush=True)
