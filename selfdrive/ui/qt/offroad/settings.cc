@@ -2677,6 +2677,30 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
       this);
   list->addItem(carrotHudToggle);
 
+  list->addItem(horizontal_line());
+
+  auto *eonClusterHudToggle = new ParamControl("EonClusterHud",
+      "외부 클러스터 HUD 사용",
+      "EON에 연결된 TURZX USB 클러스터 화면을 사용합니다. 지원 장치가 연결되면 주행 정보와 내비게이션을 외부 화면에 표시합니다.",
+      "../assets/offroad/icon_road.png",
+      this);
+  list->addItem(eonClusterHudToggle);
+
+  list->addItem(new ParamValueControlF("EonClusterHudFps",
+      "클러스터 HUD 프레임",
+      "외부 클러스터 화면의 초당 프레임 수입니다. EON의 발열과 부하를 줄이려면 기본값 10을 권장합니다.",
+      "../assets/offroad/icon_road.png", 5, 15, 1, 0, 10, this));
+
+  list->addItem(new ParamValueControlF("EonClusterHudBrightness",
+      "클러스터 HUD 밝기",
+      "외부 클러스터 화면의 밝기입니다. 값 변경 후 HUD를 껐다 켜면 적용됩니다.",
+      "../assets/offroad/icon_road.png", 10, 100, 5, 0, 65, this));
+
+  list->addItem(new ParamValueControlF("EonClusterHudJpegQuality",
+      "클러스터 HUD 화질",
+      "외부 클러스터 화면의 JPEG 품질입니다. 값 변경 후 HUD를 껐다 켜면 적용됩니다.",
+      "../assets/offroad/icon_road.png", 35, 75, 1, 0, 58, this));
+
   // ── CarrotPilot Auto-Tuner (commit 9dd5e2c port) ─────────────
   list->addItem(horizontal_line());
 
