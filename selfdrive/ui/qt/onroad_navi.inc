@@ -144,7 +144,7 @@ static void parseCarrotLanes(const QJsonValue &value, QVector<int> &types,
   }
 }
 
-void NvgWindow::updateCarrotNavi() {
+void NvgWindow::updateCarrotNavi(bool load_images) {
   const uint64_t now = millis_since_boot();
   if (now - carrot_navi_last_read < 500) return;
   carrot_navi_last_read = now;
@@ -159,21 +159,29 @@ void NvgWindow::updateCarrotNavi() {
 
   // nMirror가 제공하는 실제 Tmap 하단 차선 안내 이미지를 2Hz로 갱신한다.
   // JSON 방향값은 APK 버전마다 달라 이미지가 있으면 이를 우선 사용한다.
-  const QString lane_image_path = "/dev/shm/carrot_navi_lane_bottom.png";
-  const QFileInfo lane_image_info(lane_image_path);
-  const qint64 lane_now = QDateTime::currentMSecsSinceEpoch();
-  if (lane_image_info.exists()) {
-    const qint64 lane_mtime = lane_image_info.lastModified().toMSecsSinceEpoch();
-    if (lane_now - lane_mtime >= -5000 && lane_now - lane_mtime <= 5000) {
-      if (lane_mtime != carrot_navi_lane_image_mtime || carrot_navi_lane_image.isNull()) {
-        QPixmap next_lane_image;
-        if (next_lane_image.load(lane_image_path)) {
-          carrot_navi_lane_image = next_lane_image;
-          carrot_navi_lane_scaled_image = QPixmap();
-          carrot_navi_lane_scaled_width = 0;
-          carrot_navi_lane_scaled_height = 0;
-          carrot_navi_lane_image_mtime = lane_mtime;
+  if (load_images) {
+    const QString lane_image_path = "/dev/shm/carrot_navi_lane_bottom.png";
+    const QFileInfo lane_image_info(lane_image_path);
+    const qint64 lane_now = QDateTime::currentMSecsSinceEpoch();
+    if (lane_image_info.exists()) {
+      const qint64 lane_mtime = lane_image_info.lastModified().toMSecsSinceEpoch();
+      if (lane_now - lane_mtime >= -5000 && lane_now - lane_mtime <= 5000) {
+        if (lane_mtime != carrot_navi_lane_image_mtime || carrot_navi_lane_image.isNull()) {
+          QPixmap next_lane_image;
+          if (next_lane_image.load(lane_image_path)) {
+            carrot_navi_lane_image = next_lane_image;
+            carrot_navi_lane_scaled_image = QPixmap();
+            carrot_navi_lane_scaled_width = 0;
+            carrot_navi_lane_scaled_height = 0;
+            carrot_navi_lane_image_mtime = lane_mtime;
+          }
         }
+      } else {
+        carrot_navi_lane_image = QPixmap();
+        carrot_navi_lane_scaled_image = QPixmap();
+        carrot_navi_lane_scaled_width = 0;
+        carrot_navi_lane_scaled_height = 0;
+        carrot_navi_lane_image_mtime = 0;
       }
     } else {
       carrot_navi_lane_image = QPixmap();
@@ -182,7 +190,7 @@ void NvgWindow::updateCarrotNavi() {
       carrot_navi_lane_scaled_height = 0;
       carrot_navi_lane_image_mtime = 0;
     }
-  } else {
+  } else if (!carrot_navi_lane_image.isNull() || !carrot_navi_lane_scaled_image.isNull()) {
     carrot_navi_lane_image = QPixmap();
     carrot_navi_lane_scaled_image = QPixmap();
     carrot_navi_lane_scaled_width = 0;
@@ -422,7 +430,6 @@ static void drawCarrotTurnArrow(QPainter &p, const QRect &box, int type, const Q
 }
 
 void NvgWindow::drawCarrotNavi(QPainter &p) {
-  updateCarrotNavi();
   const qint64 wall_now = QDateTime::currentMSecsSinceEpoch();
   if (carrot_navi_updated_at == 0 || wall_now - static_cast<qint64>(carrot_navi_updated_at) > 35000) return;
   const bool route_active = carrot_navi_route.size() >= 2 &&
