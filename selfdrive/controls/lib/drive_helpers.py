@@ -115,13 +115,13 @@ def update_v_cruise(v_cruise_kph, v_ego, gas_pressed, buttonEvents, button_timer
   return v_cruise_kph
 
 
-def initialize_v_cruise(v_ego, buttonEvents, v_cruise_last):
+def initialize_v_cruise(v_ego, buttonEvents, v_cruise_last, v_cruise_min=V_CRUISE_ENABLE_MIN):
   for b in buttonEvents:
     # 250kph or above probably means we never had a set speed
     if b.type in (ButtonType.accelCruise, ButtonType.resumeCruise) and v_cruise_last < 250:
       return v_cruise_last
 
-  return int(round(clip(v_ego * CV.MS_TO_KPH, V_CRUISE_ENABLE_MIN, V_CRUISE_MAX)))
+  return int(round(clip(v_ego * CV.MS_TO_KPH, v_cruise_min, V_CRUISE_MAX)))
 
 
 def get_lag_adjusted_curvature(CP, v_ego, psis, curvatures, curvature_rates):

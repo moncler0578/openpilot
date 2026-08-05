@@ -10,7 +10,7 @@ LongCtrlState = car.CarControl.Actuators.LongControlState
 
 def long_control_state_trans(CP, active, long_control_state, v_ego, v_target,
                              v_target_1sec, brake_pressed, cruise_standstill,
-                             a_target_now, starting_state):
+                             a_target_now, starting_state, soft_hold=False):
   # apilot-c2 stopping transition: keep PID braking while the planned
   # acceleration is still strong, then hand over to the stopping ramp.
   cruise_standstill = cruise_standstill and not CP.enableGasInterceptor
@@ -46,6 +46,9 @@ def long_control_state_trans(CP, active, long_control_state, v_ego, v_target,
         long_control_state = LongCtrlState.stopping
       elif started_condition:
         long_control_state = LongCtrlState.pid
+
+    if soft_hold:
+      long_control_state = LongCtrlState.stopping
 
   return long_control_state
 
@@ -137,7 +140,7 @@ class LongControl:
         if kf > 0.0:
           self.pid.k_f = clip(kf, 0.7, 1.3)
 
-  def update(self, active, CS, long_plan, accel_limits, t_since_plan, radar_state):
+  def update(self, active, CS, long_plan, accel_limits, t_since_plan, radar_state, soft_hold=False):
     self._read_params()
 
     if len(long_plan.speeds) == CONTROL_N:
@@ -171,7 +174,7 @@ class LongControl:
 
     self.long_control_state = long_control_state_trans(
       self.CP, active, self.long_control_state, CS.vEgo, v_target, v_target_1sec,
-      CS.brakePressed, CS.cruiseState.standstill, a_target_now, self.starting_state)
+      CS.brakePressed, CS.cruiseState.standstill, a_target_now, self.starting_state, soft_hold)
 
     if self.long_control_state == LongCtrlState.off:
       self.reset(CS.vEgo)
@@ -179,7 +182,11 @@ class LongControl:
 
     elif self.long_control_state == LongCtrlState.stopping:
       output_accel = self.last_output_accel
-      if output_accel > self.stop_accel:
+      if soft_hold:
+        # Never reduce an already stronger stopping command when the hold
+        # latches; otherwise command the configured hold acceleration now.
+        output_accel = min(output_accel, self.stop_accel)
+      elif output_accel > self.stop_accel:
         output_accel = min(output_accel, 0.0)
         output_accel -= self.CP.stoppingDecelRate * DT_CTRL
       self.reset(CS.vEgo)

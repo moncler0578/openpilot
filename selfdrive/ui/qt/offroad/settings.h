@@ -152,6 +152,12 @@ public:
   explicit VIPPanel(QWidget* parent = nullptr);
 };
 
+class LongitudinalPanel : public QWidget {
+  Q_OBJECT
+public:
+  explicit LongitudinalPanel(QWidget* parent = nullptr);
+};
+
 // ── AutoLaneChangeTimer Control ─────────────────────────────────
 class AutoLaneChangeTimerControl : public AbstractControl {
   Q_OBJECT

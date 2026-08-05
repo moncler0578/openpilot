@@ -539,9 +539,24 @@ void NvgWindow::drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model) {
 
 void NvgWindow::drawE2eTrafficState(QPainter &p) {
   const UIState *s = uiState();
+  const bool soft_hold = (*s->sm)["carControl"].getCarControl().getHudControl().getSoftHold();
   const auto plan = (*s->sm)["longitudinalPlan"].getLongitudinalPlan();
   const int traffic_state = plan.getTrafficState();
-  if (traffic_state != 1 && traffic_state != 2) return;
+  if (!soft_hold && traffic_state != 1 && traffic_state != 2) return;
+
+  if (soft_hold) {
+    const int box_w = 250;
+    const int box_h = 76;
+    const QRect box((width() - box_w) / 2, 105, box_w, box_h);
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(QPen(QColor(255, 190, 40, 230), 4));
+    p.setBrush(QColor(0, 0, 0, 210));
+    p.drawRoundedRect(box, 18, 18);
+    ctTextIn(p, box, "SOFTHOLD", 36, QColor(255, 205, 70), true);
+    p.restore();
+    return;
+  }
 
   // Keep the indicator independent of c3-wip image assets so it fits this
   // branch's Qt painter UI and cannot fail because an icon is missing.

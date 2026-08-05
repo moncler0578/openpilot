@@ -497,11 +497,18 @@ void NvgWindow::drawCarrotNavi(QPainter &p) {
   // on all sides so it floats over the map surface the way Tmap's own lane
   // guidance does — it never touches or reserves space from the footer.
   const int lane_overlay_margin = 10;
-  const int lane_overlay_h = 56;
-  const QRect lane_row(
-      map_rect.x() + lane_overlay_margin,
-      map_rect.bottom() - lane_overlay_h - lane_overlay_margin,
+  const int lane_overlay_h = 70;
+  const int lane_inner_h = lane_overlay_h - 8;
+  const qreal lane_aspect = has_lane_image && carrot_navi_lane_image.height() > 0
+      ? static_cast<qreal>(carrot_navi_lane_image.width()) / carrot_navi_lane_image.height()
+      : 4.0;
+  const int lane_overlay_w = std::min(
       map_rect.width() - lane_overlay_margin * 2,
+      std::max(lane_overlay_h, qRound(lane_inner_h * lane_aspect) + 12));
+  const QRect lane_row(
+      map_rect.center().x() - lane_overlay_w / 2,
+      map_rect.bottom() - lane_overlay_h - lane_overlay_margin,
+      lane_overlay_w,
       lane_overlay_h);
 
   const QRect footer(
@@ -783,20 +790,25 @@ void NvgWindow::drawCarrotNavi(QPainter &p) {
     lane_clip.addRoundedRect(lane_row, 12, 12);
     p.save();
     p.setClipPath(lane_clip);
+    // Keep a small inset and fit the complete Tmap capture inside the box.
+    // KeepAspectRatioByExpanding cropped the outer direction arrows whenever
+    // the capture and overlay aspect ratios differed.
+    const QRect lane_image_rect = lane_row.adjusted(6, 4, -6, -4);
+
     // Smooth scaling is expensive on EON. Rebuild the cache only for a new
     // source image (cache cleared in updateCarrotNavi) or a new target size.
     if (carrot_navi_lane_scaled_image.isNull() ||
-        carrot_navi_lane_scaled_width != lane_row.width() ||
-        carrot_navi_lane_scaled_height != lane_row.height()) {
+        carrot_navi_lane_scaled_width != lane_image_rect.width() ||
+        carrot_navi_lane_scaled_height != lane_image_rect.height()) {
       carrot_navi_lane_scaled_image = carrot_navi_lane_image.scaled(
-          lane_row.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-      carrot_navi_lane_scaled_width = lane_row.width();
-      carrot_navi_lane_scaled_height = lane_row.height();
+          lane_image_rect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+      carrot_navi_lane_scaled_width = lane_image_rect.width();
+      carrot_navi_lane_scaled_height = lane_image_rect.height();
     }
-    const int source_x = std::max(0, (carrot_navi_lane_scaled_image.width() - lane_row.width()) / 2);
-    const int source_y = std::max(0, (carrot_navi_lane_scaled_image.height() - lane_row.height()) / 2);
-    p.drawPixmap(lane_row, carrot_navi_lane_scaled_image,
-                 QRect(source_x, source_y, lane_row.width(), lane_row.height()));
+    const QPoint lane_image_pos(
+        lane_image_rect.x() + (lane_image_rect.width() - carrot_navi_lane_scaled_image.width()) / 2,
+        lane_image_rect.y() + (lane_image_rect.height() - carrot_navi_lane_scaled_image.height()) / 2);
+    p.drawPixmap(lane_image_pos, carrot_navi_lane_scaled_image);
     p.restore();
   }
 

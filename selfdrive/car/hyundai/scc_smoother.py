@@ -10,6 +10,7 @@ from common.conversions import Conversions as CV
 from selfdrive.car.hyundai.values import Buttons
 from common.params import Params
 from selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX, V_CRUISE_MIN, V_CRUISE_DELTA_KM, V_CRUISE_DELTA_MI, CONTROL_N
+from selfdrive.controls.lib.low_speed_long import read_cruise_speed_min
 from selfdrive.controls.lib.lateral_planner import TRAJECTORY_SIZE
 from selfdrive.controls.lib.carrot_navi_atc import CarrotNaviAtc
 
@@ -68,7 +69,7 @@ class SccSmoother:
     self.speed_conv_to_ms = CV.KPH_TO_MS if self.is_metric else CV.MPH_TO_MS
     self.speed_conv_to_clu = CV.MS_TO_KPH if self.is_metric else CV.MS_TO_MPH
 
-    self.min_set_speed_clu = self.kph_to_clu(MIN_SET_SPEED_KPH)
+    self.min_set_speed_clu = self.kph_to_clu(self.min_set_speed_kph)
     self.max_set_speed_clu = self.kph_to_clu(MAX_SET_SPEED_KPH)
 
     self.target_speed = 0.
@@ -107,6 +108,9 @@ class SccSmoother:
     self.e2e_long = self.params.get_bool('ExperimentalMode')
     self.autoascc = self.params.get_bool('AutoAscc')
     self.auto_gas_resume_guard = self.params.get_bool('AutoGasResumeGuard')
+    self.min_set_speed_kph = read_cruise_speed_min(self.params)
+    if hasattr(self, "speed_conv_to_clu"):
+      self.min_set_speed_clu = self.kph_to_clu(self.min_set_speed_kph)
     initial_gap = int(clip(self.params.get_int("InitialCruiseGap"), 0, 4))
     if hasattr(self, "initial_cruise_gap") and initial_gap != self.initial_cruise_gap:
       self.initial_gap_applied = False
@@ -263,7 +267,7 @@ class SccSmoother:
     road_limit_speed, left_dist, max_speed_log = self.cal_max_speed(frame, CC, CS, controls.sm, clu11_speed, controls)
 
     # kph
-    controls.applyMaxSpeed = float(clip(CS.cruiseState_speed * CV.MS_TO_KPH, MIN_SET_SPEED_KPH,
+    controls.applyMaxSpeed = float(clip(CS.cruiseState_speed * CV.MS_TO_KPH, self.min_set_speed_kph,
                                                 self.max_speed_clu * self.speed_conv_to_ms * CV.MS_TO_KPH))
     CC.sccSmoother.longControl = self.longcontrol
     CC.sccSmoother.applyMaxSpeed = controls.applyMaxSpeed
@@ -494,7 +498,7 @@ class SccSmoother:
         v_cruise_kph = CS.cruiseState.speed * CV.MS_TO_KPH
       else:
         v_cruise_kph = SccSmoother.update_v_cruise(controls.v_cruise_kph, CS.buttonEvents, controls.enabled,
-                                                   controls.is_metric)
+                                                   controls.is_metric, controls.cruise_speed_min)
     else:
       v_cruise_kph = 0
 
@@ -511,7 +515,7 @@ class SccSmoother:
     controls.v_cruise_kph = v_cruise_kph
 
   @staticmethod
-  def update_v_cruise(v_cruise_kph, buttonEvents, enabled, metric):
+  def update_v_cruise(v_cruise_kph, buttonEvents, enabled, metric, min_set_speed_kph=MIN_SET_SPEED_KPH):
 
     global ButtonCnt, LongPressed, ButtonPrev
     if enabled:
@@ -536,6 +540,6 @@ class SccSmoother:
         elif ButtonPrev == ButtonType.decelCruise:
           v_cruise_kph -= V_CRUISE_DELTA - -v_cruise_kph % V_CRUISE_DELTA
         ButtonCnt %= 70
-      v_cruise_kph = clip(v_cruise_kph, MIN_SET_SPEED_KPH, MAX_SET_SPEED_KPH)
+      v_cruise_kph = clip(v_cruise_kph, min_set_speed_kph, MAX_SET_SPEED_KPH)
 
     return v_cruise_kph

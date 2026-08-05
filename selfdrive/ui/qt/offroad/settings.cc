@@ -1,10 +1,12 @@
 #include "selfdrive/ui/qt/offroad/settings.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
-#include <string>
 #include <map>
+#include <string>
+#include <tuple>
 
 #include <QDebug>
 
@@ -59,14 +61,15 @@ OffsetTotalControl::OffsetTotalControl(const QString &title,
 
   const QString btn_style = R"(
     QPushButton {
-      font-size: 40px;
+      font-size: 48px;
       font-weight: bold;
-      border-radius: 10px;
+      border-radius: 14px;
       background-color: #393939;
       color: #ffffff;
-      min-width: 80px;
-      max-width: 80px;
-      min-height: 70px;
+      min-width: 150px;
+      max-width: 150px;
+      min-height: 100px;
+      max-height: 100px;
     }
     QPushButton:pressed { background-color: #4a4a4a; }
   )";
@@ -125,14 +128,15 @@ AdjustLaneOffsetControl::AdjustLaneOffsetControl(const QString &title,
 
   const QString btn_style = R"(
     QPushButton {
-      font-size: 40px;
+      font-size: 48px;
       font-weight: bold;
-      border-radius: 10px;
+      border-radius: 14px;
       background-color: #393939;
       color: #ffffff;
-      min-width: 80px;
-      max-width: 80px;
-      min-height: 70px;
+      min-width: 150px;
+      max-width: 150px;
+      min-height: 100px;
+      max-height: 100px;
     }
     QPushButton:pressed { background-color: #4a4a4a; }
   )";
@@ -371,14 +375,15 @@ ParamValueControlF::ParamValueControlF(const QString &param, const QString &titl
 
   const QString btn_style = R"(
     QPushButton {
-      font-size: 40px;
+      font-size: 48px;
       font-weight: bold;
-      border-radius: 10px;
+      border-radius: 14px;
       background-color: #393939;
       color: #ffffff;
-      min-width: 80px;
-      max-width: 80px;
-      min-height: 70px;
+      min-width: 150px;
+      max-width: 150px;
+      min-height: 100px;
+      max-height: 100px;
     }
     QPushButton:pressed { background-color: #4a4a4a; }
   )";
@@ -447,14 +452,15 @@ NtuneValueControl::NtuneValueControl(const QString &group, const QString &key,
 
   const QString btn_style = R"(
     QPushButton {
-      font-size: 40px;
+      font-size: 48px;
       font-weight: bold;
-      border-radius: 10px;
+      border-radius: 14px;
       background-color: #393939;
       color: #ffffff;
-      min-width: 80px;
-      max-width: 80px;
-      min-height: 70px;
+      min-width: 150px;
+      max-width: 150px;
+      min-height: 100px;
+      max-height: 100px;
     }
     QPushButton:pressed { background-color: #4a4a4a; }
   )";
@@ -2026,7 +2032,8 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
     {"Toggles", toggles},
     {"Software", new SoftwarePanel(this)},
     {"Community", new CommunityPanel(this)},
-    {"VIP", new VIPPanel(this)},
+    {"조향", new VIPPanel(this)},
+    {"롱컨", new LongitudinalPanel(this)},
   };
 
 #ifdef ENABLE_MAPS
@@ -2379,6 +2386,116 @@ LateralControl::LateralControl(QWidget* parent): QWidget(parent) {
 
 /////////////////////////////////////////////////////////////////////////
 
+LongitudinalPanel::LongitudinalPanel(QWidget* parent) : QWidget(parent) {
+  QVBoxLayout* layout = new QVBoxLayout(this);
+  layout->setContentsMargins(50, 20, 50, 20);
+  layout->setSpacing(0);
+
+  ListWidget* list = new ListWidget(this);
+  list->setSpacing(0);
+
+  list->addItem(new ParamValueControlF(
+      "E2EAccMode", "Longitudinal Control Mode",
+      "ACC: 항상 ACC / AUTO: 평소 ACC, 신호 정지 시 E2E / E2E: 항상 E2E",
+      "../assets/img_experimental_white.svg", 0, 2, 1, 0, 0, this));
+
+  list->addItem(new ParamValueControlF(
+      "CruiseSpeedMin", "최저 설정속도 (km/h)",
+      "롱컨을 처음 켤 때 적용되는 최저 설정속도입니다 (km/h). 주행 중 변경하면 약 1초 안에 반영됩니다.",
+      "../assets/offroad/icon_road.png", 5, 30, 1, 0, 30, this));
+
+  list->addItem(new ParamControl(
+      "SoftHoldMode", "소프트홀드",
+      "브레이크를 밟고 완전히 정지하면 정차 제동을 유지합니다. 앞차나 녹색 신호만으로는 출발하지 않으며 RES/+ 또는 가속페달로 해제합니다.",
+      "../assets/offroad/icon_road.png", this));
+
+  list->addItem(new ParamValueControlF(
+      "StartAccelApply", "Start Acceleration",
+      "정지 후 출발 가속도입니다. 표시값에 0.02m/s²를 곱해 적용합니다.",
+      "../assets/offroad/icon_openpilot.png", 0, 50, 1, 0, 25, this));
+
+  list->addItem(new ParamValueControlF(
+      "StopAccelApply", "Stop Accel Apply",
+      "정지 마무리 제동값입니다. 표시값에 -0.02m/s²를 곱해 적용하며 0은 추가 제동을 끕니다.",
+      "../assets/offroad/icon_openpilot.png", 0, 100, 5, 0, 30, this));
+
+  list->addItem(horizontal_line());
+
+  const std::array<std::tuple<const char*, const char*, int>, 6> accel_controls = {{
+    {"CruiseMaxAccel0", "Max Accel 0 km/h", 180},
+    {"CruiseMaxAccel40", "Max Accel 40 km/h", 117},
+    {"CruiseMaxAccel60", "Max Accel 60 km/h", 103},
+    {"CruiseMaxAccel80", "Max Accel 80 km/h", 89},
+    {"CruiseMaxAccel110", "Max Accel 110 km/h", 74},
+    {"CruiseMaxAccel140", "Max Accel 140 km/h", 61},
+  }};
+  for (const auto& [key, title, default_value] : accel_controls) {
+    list->addItem(new ParamValueControlF(
+        key, title, "해당 속도 구간의 최대 크루즈 가속도입니다 (×0.01m/s²).",
+        "../assets/offroad/icon_openpilot.png", 10, 250, 5, 0, default_value, this));
+  }
+
+  list->addItem(horizontal_line());
+
+  const std::array<std::tuple<const char*, const char*, int>, 4> gap_controls = {{
+    {"TFollowGap1", "TR Gap 1", 110},
+    {"TFollowGap2", "TR Gap 2", 120},
+    {"TFollowGap3", "TR Gap 3", 140},
+    {"TFollowGap4", "TR Gap 4", 160},
+  }};
+  for (const auto& [key, title, default_value] : gap_controls) {
+    list->addItem(new ParamValueControlF(
+        key, title, "해당 크루즈 GAP의 추종시간입니다 (×0.01초).",
+        "../assets/offroad/icon_openpilot.png", 70, 300, 5, 0, default_value, this));
+  }
+
+  list->addItem(new ParamValueControlF(
+      "TFollowSpeedRatio", "TR Speed Ratio",
+      "속도에 따라 추종시간을 늘리는 비율입니다 (%).",
+      "../assets/offroad/icon_openpilot.png", 100, 300, 5, 0, 120, this));
+  list->addItem(new ParamValueControlF(
+      "InitialCruiseGap", "Initial Cruise Gap",
+      "크루즈가 처음 활성화될 때 선택할 GAP입니다. 0은 차량 기본값을 유지합니다.",
+      "../assets/offroad/icon_openpilot.png", 0, 4, 1, 0, 0, this));
+
+  list->addItem(horizontal_line());
+
+  list->addItem(new ParamValueControlF(
+      "LongTuningKpV", "Longitudinal Kp", "속도 오차 비례 게인입니다 (×0.01).",
+      "../assets/offroad/icon_openpilot.png", 0, 200, 5, 0, 100, this));
+  list->addItem(new ParamValueControlF(
+      "LongTuningKiV", "Longitudinal Ki", "누적 속도 오차 적분 게인입니다 (×0.001).",
+      "../assets/offroad/icon_openpilot.png", 0, 2000, 5, 0, 0, this));
+  list->addItem(new ParamValueControlF(
+      "LongTuningKf", "Longitudinal Feedforward", "목표 가속도 피드포워드 게인입니다 (×0.01).",
+      "../assets/offroad/icon_openpilot.png", 0, 200, 5, 0, 100, this));
+  list->addItem(new ParamValueControlF(
+      "LongitudinalActuatorDelayLowerBound", "Actuator Delay Lower Bound",
+      "종방향 액추에이터의 짧은 지연값입니다 (×0.01초). 0은 차량 기본값을 사용합니다.",
+      "../assets/offroad/icon_openpilot.png", 0, 100, 5, 0, 0, this));
+  list->addItem(new ParamValueControlF(
+      "LongitudinalActuatorDelayUpperBound", "Actuator Delay Upper Bound",
+      "종방향 액추에이터의 긴 지연값입니다 (×0.01초). 0은 차량 기본값을 사용합니다.",
+      "../assets/offroad/icon_openpilot.png", 0, 100, 5, 0, 0, this));
+
+  list->addItem(horizontal_line());
+
+  list->addItem(new ParamValueControlF(
+      "ACCStopDistance", "ACC Stop Distance",
+      "ACC 모드에서 앞차 뒤에 정지할 때 유지할 거리입니다 (m).",
+      "../assets/offroad/icon_road.png", 1, 10, 1, 0, 6, this));
+  list->addItem(new ParamValueControlF(
+      "E2EStopDistance", "E2E Stop Distance",
+      "모델이 예측한 신호 또는 정지선 앞에서 유지할 거리입니다 (m).",
+      "../assets/offroad/icon_road.png", 1, 15, 1, 0, 6, this));
+
+  ScrollView *scroller = new ScrollView(list, this);
+  scroller->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  layout->addWidget(scroller);
+}
+
+/////////////////////////////////////////////////////////////////////////
+
 VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
   QVBoxLayout* layout = new QVBoxLayout(this);
   layout->setContentsMargins(50, 20, 50, 20);
@@ -2429,49 +2546,6 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
       "범위: 0.000 ~ 0.200  /  기본값: 0.080",
       "../assets/offroad/icon_openpilot.png", 0.0, 0.2, 0.005, 3, 0.08, this));
 
-  list->addItem(new ParamValueControlF(
-      "StartAccelApply",
-      "Start Acceleration",
-      "정지 후 출발 가속도입니다. 실제 적용값은 표시값 × 0.02m/s²입니다. 기본값: 25 = 0.50m/s²",
-      "../assets/offroad/icon_openpilot.png",
-      0, 50, 1, 0, 25, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseMaxAccel0", "Max Accel 0 km/h",
-      "0km/h 구간 최대가속 (×0.01m/s²). 기본값: 180",
-      "../assets/offroad/icon_openpilot.png",
-      10, 250, 5, 0, 180, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseMaxAccel40", "Max Accel 40 km/h",
-      "40km/h 구간 최대가속 (×0.01m/s²). 기본값: 117",
-      "../assets/offroad/icon_openpilot.png",
-      10, 250, 5, 0, 117, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseMaxAccel60", "Max Accel 60 km/h",
-      "60km/h 구간 최대가속 (×0.01m/s²). 기본값: 103",
-      "../assets/offroad/icon_openpilot.png",
-      10, 250, 5, 0, 103, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseMaxAccel80", "Max Accel 80 km/h",
-      "80km/h 구간 최대가속 (×0.01m/s²). 기본값: 89",
-      "../assets/offroad/icon_openpilot.png",
-      10, 250, 5, 0, 89, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseMaxAccel110", "Max Accel 110 km/h",
-      "110km/h 구간 최대가속 (×0.01m/s²). 기본값: 74",
-      "../assets/offroad/icon_openpilot.png",
-      10, 250, 5, 0, 74, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseMaxAccel140", "Max Accel 140 km/h",
-      "140km/h 구간 최대가속 (×0.01m/s²). 기본값: 61",
-      "../assets/offroad/icon_openpilot.png",
-      10, 250, 5, 0, 61, this));
-  
   list->addItem(new ParamValueControlF("LateralTorqueKpV",
       "Torque Kp", "비례 게인 (×0.01).  기본값: 10",
       "../assets/offroad/icon_openpilot.png", 0, 500, 5, 0, 10, this));
@@ -2503,48 +2577,6 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
 
   // ── Offset Total ─────────────────────────────────────────────
   // 레인모드 + 레인리스 모드 모두 적용. 0.01m 단위, -1.00 ~ +1.00m
-  list->addItem(new ParamValueControlF("TFollowGap1",
-      "TR Gap 1", "Carrot GAP1 추종시간 (×0.01초). 기본값: 110",
-      "../assets/offroad/icon_openpilot.png", 70, 300, 5, 0, 110, this));
-  list->addItem(new ParamValueControlF("TFollowGap2",
-      "TR Gap 2", "Carrot GAP2 추종시간 (×0.01초). 기본값: 120",
-      "../assets/offroad/icon_openpilot.png", 70, 300, 5, 0, 120, this));
-  list->addItem(new ParamValueControlF("TFollowGap3",
-      "TR Gap 3", "Carrot GAP3 추종시간 (×0.01초). 기본값: 140",
-      "../assets/offroad/icon_openpilot.png", 70, 300, 5, 0, 140, this));
-  list->addItem(new ParamValueControlF("TFollowGap4",
-      "TR Gap 4", "Carrot GAP4 추종시간 (×0.01초). 기본값: 160",
-      "../assets/offroad/icon_openpilot.png", 70, 300, 5, 0, 160, this));
-  list->addItem(new ParamValueControlF("TFollowSpeedRatio",
-      "TR Speed Ratio", "C2 방식 속도 연동 비율(%). 100km/h에서 적용되며 기본값 120은 TR을 20% 늘립니다.",
-      "../assets/offroad/icon_openpilot.png", 100, 300, 5, 0, 120, this));
-  list->addItem(new ParamValueControlF("InitialCruiseGap",
-      "Initial Cruise Gap", "시동 후 처음 크루즈가 활성화될 때 GAP을 자동 조정합니다. 0: 차량 기본값, 1~4: 목표 GAP",
-      "../assets/offroad/icon_openpilot.png", 0, 4, 1, 0, 0, this));
-
-  list->addItem(new ParamValueControlF("E2EAccMode",
-      "Longitudinal Control Mode",
-      "ACC: 항상 ACC / AUTO: 평소 ACC, 신호 정지 시 E2E / E2E: 항상 E2E",
-      "../assets/img_experimental_white.svg", 0, 2, 1, 0, 0, this));
-
-  list->addItem(new ParamValueControlF("LongTuningKpV",
-      "Longitudinal Kp", "속도 오차 비례 게인 (×0.01). 기본값: 100 (=1.00)",
-      "../assets/offroad/icon_openpilot.png", 0, 200, 5, 0, 100, this));
-  list->addItem(new ParamValueControlF("LongTuningKiV",
-      "Longitudinal Ki", "누적 속도 오차 적분 게인 (×0.001). 기본값: 0",
-      "../assets/offroad/icon_openpilot.png", 0, 2000, 5, 0, 0, this));
-  list->addItem(new ParamValueControlF("LongTuningKf",
-      "Longitudinal Feedforward", "플래너 목표가속도 피드포워드 게인 (×0.01). 기본값: 100",
-      "../assets/offroad/icon_openpilot.png", 0, 200, 5, 0, 100, this));
-  list->addItem(new ParamValueControlF("LongitudinalActuatorDelayLowerBound",
-      "Actuator Delay Lower Bound", "듀얼 지연 보상의 짧은 지연값 (×0.01초). 0은 차량 기본 지연에서 자동 계산합니다.",
-      "../assets/offroad/icon_openpilot.png", 0, 100, 5, 0, 0, this));
-  list->addItem(new ParamValueControlF("LongitudinalActuatorDelayUpperBound",
-      "Actuator Delay Upper Bound", "듀얼 지연 보상의 긴 지연값 (×0.01초). 0은 차량 기본 지연에서 자동 계산합니다.",
-      "../assets/offroad/icon_openpilot.png", 0, 100, 5, 0, 0, this));
-  list->addItem(new ParamValueControlF("StopAccelApply",
-      "Stop Accel Apply", "정지 마무리 제동값입니다. 설정값 × -0.02m/s²로 적용되며, 30은 -0.60m/s²입니다. 0은 추가 정지 제동을 끕니다.",
-      "../assets/offroad/icon_openpilot.png", 0, 100, 5, 0, 30, this));
   list->addItem(horizontal_line());
 
   auto *path_offset = new OffsetTotalControl(
@@ -2622,19 +2654,6 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
       "CarrotAutoTurnEndTime", "Carrot ATC Speed Timing",
       "회전 몇 초 전에 목표속도까지 줄여놓을지를 정하는 타이밍값. 모드 2 or 3일때만 작동.",
       "../assets/offroad/icon_road.png", 2, 12, 1, 0, 6, this));
-
-  // ── ACCStopDistance / E2EStopDistance (독립 조절) ────────────────
-  list->addItem(new ParamValueControlF(
-      "ACCStopDistance", "ACC Stop Distance",
-      "일반 ACC 모드(앞차 추종)에서 앞차 뒤에 정지할 때 유지하는 거리(m).",
-      "../assets/offroad/icon_road.png", 1, 10, 1, 0, 6, this));
-
-  list->addItem(new ParamValueControlF(
-      "E2EStopDistance", "E2E Stop Distance",
-      "E2E 모드(모델이 신호/정지선을 직접 인식)에서의 정지거리(m). 앞차가 "
-      "없으면 모델이 예측한 정지지점에서 이만큼 앞서 서고, 앞차가 있으면 "
-      "앞차와의 정지거리로도 그대로 쓰입니다.",
-      "../assets/offroad/icon_road.png", 1, 15, 1, 0, 6, this));
 
   list->addItem(horizontal_line());
 

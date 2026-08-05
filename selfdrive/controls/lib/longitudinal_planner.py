@@ -27,6 +27,12 @@ LON_MPC_STEP = 0.2  # first step is 0.2s
 AWARENESS_DECEL = -0.2  # car smoothly decel at .2m/s^2 when user is distracted
 A_CRUISE_MIN = -1.0
 
+# A single noisy model frame must never release a traffic-light stop. Require
+# a sustained, clearly open trajectory before cancelling the stop, including
+# when automatically resuming from standstill.
+E2E_START_CONFIRM_TIME = 1.5
+E2E_START_MIN_DISTANCE = 60.0
+
 # apilot-c2 style six-point cruise acceleration table. Stored Params use
 # 0.01 m/s^2 and are applied before the MPC solves its trajectory.
 CRUISE_MAX_ACCEL_BP = [0.0, 40.0 * CV.KPH_TO_MS, 60.0 * CV.KPH_TO_MS,
@@ -223,16 +229,23 @@ class LongitudinalPlanner:
                        abs(model_y) < 5.0)
     else:
       raw_stop_sign = False
-    raw_start_sign = not raw_stop_sign and (model_v > 5.0 or model_v > model_v0 + 2.0)
+    raw_start_sign = (not raw_stop_sign and
+                      model_x > E2E_START_MIN_DISTANCE and
+                      model_v > 5.0 and
+                      model_v > model_v0 + 2.0)
 
     self.e2e_stop_sign_count = self.e2e_stop_sign_count + 1 if raw_stop_sign else 0
     self.e2e_start_sign_count = self.e2e_start_sign_count + 1 if raw_start_sign else 0
     stop_sign = self.e2e_stop_sign_count > 0 and not car_state.rightBlinker
-    start_sign = self.e2e_start_sign_count * DT_MDL > 0.1
+    start_sign = self.e2e_start_sign_count * DT_MDL >= E2E_START_CONFIRM_TIME
+    # Keep automatic resume, but only after the legacy EON model has predicted
+    # a clearly open road continuously. This rejects the short trajectory
+    # spikes that previously caused false starts at a red light.
+    model_resume_allowed = start_sign
     lead_present = radar_state.leadOne.status or radar_state.leadTwo.status
 
     if self.auto_e2e_stopping:
-      if start_sign or car_state.gasPressed:
+      if model_resume_allowed or car_state.gasPressed:
         self.auto_e2e_stopping = False
         self.auto_e2e_prepare = True
         self.e2e_stop_distance = 0.0
