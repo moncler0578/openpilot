@@ -14,6 +14,7 @@ from opendbc.can.packer import CANPacker
 from common.conversions import Conversions as CV
 from common.params import Params
 from selfdrive.controls.lib.longcontrol import LongCtrlState
+from selfdrive.controls.lib.longitudinal_jerk import LongitudinalJerkController, read_jerk_start_limit
 from selfdrive.road_speed_limiter import road_speed_limiter_get_active
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
@@ -70,9 +71,11 @@ class CarController:
     self.stock_navi_decel_enabled = param.get_bool('StockNaviDecelEnabled')
     self.keep_steering_turn_signals = param.get_bool('KeepSteeringTurnSignals')
     self.haptic_feedback_speed_camera = param.get_bool('HapticFeedbackWhenSpeedCamera')
+    self.op_params = param
 
     self.scc_smoother = SccSmoother()
     self.low_speed_long_engage = LowSpeedLongEngage()
+    self.longitudinal_jerk = LongitudinalJerkController(read_jerk_start_limit(param))
     self.last_blinker_frame = 0
     self.prev_active_cam = False
     self.active_cam_timer = 0
@@ -223,6 +226,22 @@ class CarController:
     # scc smoother
     self.scc_smoother.update(CC.enabled, can_sends, self.packer, CC, CS, self.frame, controls)
 
+    stopping = controls.LoC.long_control_state == LongCtrlState.stopping
+    jerk_upper = jerk_lower = 5.0
+    if CS.has_scc14:
+      if self.frame % 100 == 0:
+        self.longitudinal_jerk.set_start_limit(read_jerk_start_limit(self.op_params))
+
+      planned_jerk = 0.0
+      long_plan_jerks = controls.sm['longitudinalPlan'].jerks
+      if len(long_plan_jerks):
+        planned_jerk = long_plan_jerks[0]
+
+      jerk_upper, jerk_lower = self.longitudinal_jerk.update(
+        CC.longActive, stopping, hud_control.softHold, planned_jerk, DT_CTRL)
+    else:
+      self.longitudinal_jerk.reset()
+
     # Hyundai stock SCC rejects a leadless SET request below 30 km/h. When the
     # driver explicitly presses SET/RES, briefly send the openpilot long SCC
     # command path so ACCMode can become active without waiting for stock SCC.
@@ -246,7 +265,6 @@ class CarController:
           set_speed = max(CS.out.vEgo, min_set_speed)
         set_speed *= CV.MS_TO_MPH if CS.is_set_speed_in_mph else CV.MS_TO_KPH
 
-        stopping = controls.LoC.long_control_state == LongCtrlState.stopping
         apply_accel = self.scc_smoother.get_apply_accel(CS, controls.sm, actuators.accel, stopping)
         apply_accel = clip(apply_accel if CC.longActive else 0,
                            CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
@@ -301,6 +319,6 @@ class CarController:
 
           can_sends.append(
             create_scc14(self.packer, CC.enabled, CS.out.vEgo, acc_standstill, apply_accel, CS.out.gasPressed,
-                         obj_gap, CS.scc14))
+                         obj_gap, CS.scc14, jerk_upper, jerk_lower))
     else:
       self.scc12_cnt = -1

@@ -185,24 +185,23 @@ def create_scc13(packer, scc13):
   values = copy.copy(scc13)
   return packer.make_can_msg("SCC13", 0, values)
 
-def create_scc14(packer, enabled, e_vgo, standstill, accel, gaspressed, objgap, scc14):
+def create_scc14(packer, enabled, e_vgo, standstill, accel, gaspressed, objgap, scc14,
+                 jerk_upper=5.0, jerk_lower=5.0):
   values = copy.copy(scc14)
 
   # from xps-genesis
   if enabled:
     values["ACCMode"] = 2 if gaspressed and (accel > -0.2) else 1
     values["ObjGap"] = objgap
+    values["JerkUpperLimit"] = max(0.0, min(12.7, jerk_upper))
+    values["JerkLowerLimit"] = max(0.0, min(12.7, jerk_lower))
     if standstill:
-      values["JerkUpperLimit"] = 0.5
-      values["JerkLowerLimit"] = 10.
       values["ComfortBandUpper"] = 0.
       values["ComfortBandLower"] = 0.
       if e_vgo > 0.27:
         values["ComfortBandUpper"] = 2.
         values["ComfortBandLower"] = 0.
     else:
-      values["JerkUpperLimit"] = 50.
-      values["JerkLowerLimit"] = 50.
       values["ComfortBandUpper"] = 50.
       values["ComfortBandLower"] = 50.
 

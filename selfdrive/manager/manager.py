@@ -52,6 +52,7 @@ def manager_init() -> None:
     ("UseClusterSpeed", "0"),
     ("LongControlEnabled", "0"),
     ("CruiseSpeedMin", "30"),
+    ("JerkStartLimit", "10"),
     ("IsLdwsCar", "0"),
     ("LaneChangeEnabled", "0"),
     ("AutoLaneChangeEnabled", "0"),
