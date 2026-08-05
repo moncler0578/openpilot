@@ -104,7 +104,7 @@ protected:
   // 화면 우하단 정보줄 (wifi IP)
   void drawCarrotBottom(QPainter &p);
   void drawCarrotNavi(QPainter &p);
-  void updateCarrotNavi();
+  void updateCarrotNavi(bool load_images = true);
 
   QPixmap ic_speed_bg;
   int  blink_timer = 0;
@@ -121,6 +121,8 @@ protected:
   float atc_ui_turn_ll_prob = 1.0f;
   uint64_t atc_ui_last_frame_ms = 0;
   uint64_t carrot_navi_last_read = 0;
+  uint64_t eon_cluster_hud_last_read = 0;
+  bool eon_cluster_hud_connected = false;
   uint64_t carrot_navi_updated_at = 0;
   uint64_t carrot_navi_guidance_updated_at = 0;
   QVector<QPointF> carrot_navi_route;

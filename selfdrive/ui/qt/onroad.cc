@@ -510,8 +510,17 @@ void NvgWindow::drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model) {
 
   drawLaneLines(p, s);
 
+  const uint64_t now = millis_since_boot();
+  if (now - eon_cluster_hud_last_read >= 1000) {
+    eon_cluster_hud_last_read = now;
+    eon_cluster_hud_connected = Params().getBool("EonClusterHudConnected");
+  }
+  // Keep JSON navigation state fresh for speed-limit and ATC consumers, but
+  // avoid image I/O and all on-device TMap drawing while the USB HUD owns it.
+  updateCarrotNavi(!eon_cluster_hud_connected);
+
   drawCarrotLead(p);
-  drawCarrotNavi(p);
+  if (!eon_cluster_hud_connected) drawCarrotNavi(p);
   drawCarrotHud(p);
   drawE2eTrafficState(p);
   drawSpeedLimit(p);
