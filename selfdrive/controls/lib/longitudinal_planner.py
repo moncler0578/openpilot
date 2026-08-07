@@ -135,7 +135,6 @@ class LongitudinalPlanner:
     self.experimental_mode_enabled = self.e2e_acc_mode == 2 and self.auto_e2e_enabled
     if not self.auto_e2e_enabled:
       self.mpc.mode = 'acc'
-    self.mpc.human_following = self.params.get_bool("HumanFollowing")
     # ACC / E2E 정지거리 각각 독립 조절 (미터). 안 읽히면 기존 고정값(6.0)으로 폴백.
     try:
       self.mpc.stop_dist_acc = max(1.0, min(10.0, float(self.params.get('ACCStopDistance', encoding='utf8') or '6')))
@@ -177,6 +176,8 @@ class LongitudinalPlanner:
     self.mpc.tfollow_gaps = gap_values
     speed_ratio = self.params.get_int("TFollowSpeedRatio")
     self.mpc.t_follow_speed_ratio = (speed_ratio if speed_ratio >= 100 else 120) * 0.01
+    decel_boost = self.params.get_int("TFollowDecelBoost")
+    self.mpc.t_follow_decel_boost = float(clip(decel_boost if decel_boost > 0 else 50, 0, 100)) * 0.01
     # ───────────────────
 
     # ── Auto-Tuner: 학습된 추종거리 파라미터를 MPC에 반영 (5초 주기 갱신) ──
@@ -238,11 +239,12 @@ class LongitudinalPlanner:
     self.e2e_start_sign_count = self.e2e_start_sign_count + 1 if raw_start_sign else 0
     stop_sign = self.e2e_stop_sign_count > 0 and not car_state.rightBlinker
     start_sign = self.e2e_start_sign_count * DT_MDL >= E2E_START_CONFIRM_TIME
-    # Keep automatic resume, but only after the legacy EON model has predicted
-    # a clearly open road continuously. This rejects the short trajectory
-    # spikes that previously caused false starts at a red light.
-    model_resume_allowed = start_sign
     lead_present = radar_state.leadOne.status or radar_state.leadTwo.status
+    # A tracked lead remains constrained by the MPC, so release the E2E stop
+    # latch and let the lead trajectory control standstill and launch. Without
+    # this, lead-following stops wait indefinitely for the vision start signal.
+    # Leadless signal stops still require a confirmed model start prediction.
+    model_resume_allowed = start_sign or lead_present
 
     if self.auto_e2e_stopping:
       if model_resume_allowed or car_state.gasPressed:
@@ -260,7 +262,8 @@ class LongitudinalPlanner:
     elif self.auto_e2e_prepare:
       # Return to the stored stop if a departure prediction disappears at
       # low speed or the driver presses the brake.
-      if car_state.brakePressed or (v_ego_kph < 2.0 and not start_sign and not car_state.gasPressed):
+      if car_state.brakePressed or (v_ego_kph < 2.0 and not start_sign and
+                                    not lead_present and not car_state.gasPressed):
         self.auto_e2e_prepare = False
         self.auto_e2e_stopping = True
         self.e2e_stop_distance = 0.0 if car_state.vEgo < 0.1 else filtered_stop_x
@@ -501,4 +504,3 @@ class LongitudinalPlanner:
     source = min(v_solutions, key=v_solutions.get)
 
     return source, a_solutions[source], v_solutions[source]
-

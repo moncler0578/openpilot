@@ -3,6 +3,7 @@ from common.numpy_fast import clip, interp
 from common.params import Params
 from common.realtime import DT_CTRL
 from selfdrive.controls.lib.drive_helpers import CONTROL_N, apply_deadzone
+from selfdrive.controls.lib.longitudinal_jerk import read_jerk_start_limit
 from selfdrive.controls.lib.pid import PIDController
 from selfdrive.modeld.constants import T_IDXS
 
@@ -13,7 +14,13 @@ def long_control_state_trans(CP, active, long_control_state, v_ego, v_target,
                              a_target_now, starting_state, soft_hold=False):
   # apilot-c2 stopping transition: keep PID braking while the planned
   # acceleration is still strong, then hand over to the stopping ramp.
-  cruise_standstill = cruise_standstill and not CP.enableGasInterceptor
+  # With openpilot longitudinal control the stock SCC standstill flag can
+  # remain latched until an acceleration command is sent. Using it here would
+  # create a deadlock: starting is blocked while the flag is set, but the flag
+  # cannot clear until starting begins. Let the MPC trajectory decide stop and
+  # launch for openpilot long; retain the stock flag for PCM cruise control.
+  cruise_standstill = (cruise_standstill and not CP.enableGasInterceptor and
+                       not CP.openpilotLongitudinalControl)
   accelerating = v_target_1sec > (v_target + 0.01)
   planned_stop = (v_target < CP.vEgoStopping and
                   v_target_1sec < CP.vEgoStopping and
@@ -66,6 +73,8 @@ class LongControl:
     self.long_coast_band = 0.0
     self.v_pid = 0.0
     self.last_output_accel = 0.0
+    self.soft_hold_release_smoothing = False
+    self.soft_hold_release_jerk = read_jerk_start_limit(self.params)
 
     # Read launch control immediately so StartAccelApply=0 disables the
     # starting state from the first control cycle.
@@ -79,7 +88,7 @@ class LongControl:
     schema_upper = CP.longitudinalActuatorDelayUpperBound
     self.actuator_delay_lower = float(clip(schema_lower if schema_lower > 0.0 else delay - 0.1, 0.1, 0.99))
     self.actuator_delay_upper = float(clip(schema_upper if schema_upper > 0.0 else delay + 0.1,
-                                           self.actuator_delay_lower + 0.01, 1.0))
+                                           self.actuator_delay_lower, 1.0))
     self._update_actuator_delays()
 
   def _update_start_accel(self):
@@ -108,9 +117,9 @@ class LongControl:
     if lower > 0.0:
       self.actuator_delay_lower = float(clip(lower, 0.1, 0.99))
     if upper > 0.0:
-      self.actuator_delay_upper = float(clip(upper, self.actuator_delay_lower + 0.01, 1.0))
-    elif self.actuator_delay_upper <= self.actuator_delay_lower:
-      self.actuator_delay_upper = min(1.0, self.actuator_delay_lower + 0.05)
+      self.actuator_delay_upper = float(clip(upper, self.actuator_delay_lower, 1.0))
+    elif self.actuator_delay_upper < self.actuator_delay_lower:
+      self.actuator_delay_upper = self.actuator_delay_lower
 
   def reset(self, v_pid=0.0):
     self.pid.reset()
@@ -122,6 +131,7 @@ class LongControl:
       self.read_param_count = 0
       self._update_stop_accel()
       self.long_coast_band = clip(self.params.get_float("LongCoastBand") * 0.01, 0.0, 0.4)
+      self.soft_hold_release_jerk = read_jerk_start_limit(self.params)
 
       self._update_actuator_delays()
 
@@ -140,8 +150,14 @@ class LongControl:
         if kf > 0.0:
           self.pid.k_f = clip(kf, 0.7, 1.3)
 
-  def update(self, active, CS, long_plan, accel_limits, t_since_plan, radar_state, soft_hold=False):
+  def update(self, active, CS, long_plan, accel_limits, t_since_plan, radar_state,
+             soft_hold=False, soft_hold_released=False):
     self._read_params()
+
+    if soft_hold or not active:
+      self.soft_hold_release_smoothing = False
+    elif soft_hold_released:
+      self.soft_hold_release_smoothing = True
 
     if len(long_plan.speeds) == CONTROL_N:
       speeds = long_plan.speeds
@@ -212,6 +228,13 @@ class LongControl:
 
       if -self.long_coast_band < output_accel < 0.0:
         output_accel = 0.0
+
+    if self.soft_hold_release_smoothing:
+      # Avoid jumping directly from the hold brake command to launch torque.
+      # Only limit the upward crossover; a new braking request remains immediate.
+      requested_accel = output_accel
+      output_accel = min(requested_accel, self.last_output_accel + self.soft_hold_release_jerk * DT_CTRL)
+      self.soft_hold_release_smoothing = output_accel + 1e-6 < requested_accel
 
     self.last_output_accel = clip(output_accel, accel_limits[0], accel_limits[1])
     return self.last_output_accel

@@ -45,9 +45,29 @@ def manager_init() -> None:
     ("IsMetric", "1"),
 
     # HKG
-    ("AutoAscc", "1"),
+    ("AutoCruiseControl", "1"),
+    ("AutoGasTokSpeed", "30"),
+    ("AutoGasCancelSpeed", "30"),
+    ("SpeedFromPCM", "2"),
     ("AutoSpeedUptoRoadSpeedLimit", "0"),
+    ("AutoRoadSpeedAdjust", "0"),          # -100=limit immediately, 0=retain, 1..100=blend on limit drop
+    ("AutoRoadSpeedLimitOffset", "0"),
+    ("AutoNaviSpeedSafetyFactor", "100"),
+    ("CruiseButtonMode", "0"),              # 0=normal, 1/2=custom, 3=speed table
+    ("CruiseSpeedUnit", "10"),
+    ("CruiseSpeedUnitBasic", "1"),
+    ("CruiseButtonLongDelay", "70"),
+    ("CruiseSpeed1", "30"),
+    ("CruiseSpeed2", "50"),
+    ("CruiseSpeed3", "70"),
+    ("CruiseSpeed4", "90"),
+    ("CruiseSpeed5", "110"),
     ("AutoGasResumeGuard", "1"),            # 가속페달 재개 안전조건   # 도로제한속도 대비 자동증속 상한(%), 0=off
+    ("AutoResumeFromGas", "1"),              # 0=off, 1=hold, 2=hold+quick release
+    ("AutoResumeFromGasSpeedMode", "0"),     # 0=current, 1=previous, 2=previous with lead
+    ("AutoResumeFromBrakeRelease", "0"),     # opt-in for safety
+    ("AutoResumeFromBrakeCarSpeed", "30"),
+    ("AutoResumeFromBrakeReleaseDist", "10"),
     ("LateralControl", "TORQUE"),
     ("UseClusterSpeed", "0"),
     ("LongControlEnabled", "0"),
@@ -76,6 +96,11 @@ def manager_init() -> None:
     ("EonClusterHudBrightness", "65"),
     ("EonClusterHudJpegQuality", "58"),
     ("EonClusterHudPanelLayout", "0"),
+    ("ShowDateTime", "1"),
+    ("ShowBlindSpotAlways", "0"),
+    ("ShowPathWidth", "90"),
+    ("ShowPathStatusColor", "1"),
+    ("ShowPathBrakeBorder", "1"),
     ("CustomSteerRatio", "1650"),
     ("UseLiveSteerRatio", "0"),
     ("SteerActuatorDelay", "50"),
@@ -92,10 +117,12 @@ def manager_init() -> None:
     ("AutoLaneChangeSpeed", "50"),  # 자동/방향지시등 차선변경 허용 최저 속도 (km/h)
     ("AdjustLaneOffset", "0"),    # 좌우 여유공간 비대칭 보정 (cm, 0=off)
     ("OffsetTotal", "0.0"),        # 통합 오프셋(offset_total), 전 모드 공통 적용
-    ("HumanFollowing", "0"),
+    ("TFollowDecelBoost", "50"),
     ("TurnVisionControl", "0"),
     ("VisionCurveLaneless", "0"),
     ("StopAccelApply", "30"),
+    ("LongitudinalActuatorDelayLowerBound", "50"),
+    ("LongitudinalActuatorDelayUpperBound", "50"),
     ("SoftHoldMode", "1"),
   ]
   if not PC:

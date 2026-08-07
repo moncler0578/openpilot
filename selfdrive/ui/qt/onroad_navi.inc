@@ -159,10 +159,10 @@ void NvgWindow::updateCarrotNavi(bool load_images) {
 
   // nMirror가 제공하는 실제 Tmap 하단 차선 안내 이미지를 2Hz로 갱신한다.
   // JSON 방향값은 APK 버전마다 달라 이미지가 있으면 이를 우선 사용한다.
+  const QString lane_image_path = "/dev/shm/carrot_navi_lane_bottom.png";
+  const QFileInfo lane_image_info(lane_image_path);
+  const qint64 lane_now = QDateTime::currentMSecsSinceEpoch();
   if (load_images) {
-    const QString lane_image_path = "/dev/shm/carrot_navi_lane_bottom.png";
-    const QFileInfo lane_image_info(lane_image_path);
-    const qint64 lane_now = QDateTime::currentMSecsSinceEpoch();
     if (lane_image_info.exists()) {
       const qint64 lane_mtime = lane_image_info.lastModified().toMSecsSinceEpoch();
       if (lane_now - lane_mtime >= -5000 && lane_now - lane_mtime <= 5000) {
@@ -190,7 +190,7 @@ void NvgWindow::updateCarrotNavi(bool load_images) {
       carrot_navi_lane_scaled_height = 0;
       carrot_navi_lane_image_mtime = 0;
     }
-  } else if (!carrot_navi_lane_image.isNull() || !carrot_navi_lane_scaled_image.isNull()) {
+  } else {
     carrot_navi_lane_image = QPixmap();
     carrot_navi_lane_scaled_image = QPixmap();
     carrot_navi_lane_scaled_width = 0;
@@ -253,11 +253,12 @@ void NvgWindow::updateCarrotNavi(bool load_images) {
     carrot_navi_route = next;
   }
 
-  // ---- speed 스트림: 도로 제한속도 (내비 중 LIMIT 폴백용) ----
+  // ---- speed 스트림: 기준 브랜치의 제한속도와 SDI 안전안내 ----
   carrot_navi_speed_limit = 0;
+  carrot_navi_safety_description.clear();
   const QJsonObject speed = root.value("speed").toObject();
   if (!speed.isEmpty()) {
-    // 서버 키 형식(snake/camel) 불확실 → 후보 키 순차 시도 (도로 제한속도 우선)
+    // nMirror/Tmap 버전별 snake_case/camelCase 키를 모두 허용한다.
     static const char *limit_keys[] = {
       "road_limit_kph", "limit_speed", "roadLimitKph",
       "section_speed_limit_kph", "sectionSpeedLimitKph",
@@ -267,6 +268,17 @@ void NvgWindow::updateCarrotNavi(bool load_images) {
       if (speed.contains(k)) {
         const int v = speed.value(k).toInt();
         if (v > 0 && v <= 150) { carrot_navi_speed_limit = v; break; }
+      }
+    }
+    static const char *description_keys[] = {
+      "sdi_description", "sdiDescription", "sdi_descr", "sdiDescr",
+      "safety_description", "safetyDescription",
+      "camera_description", "cameraDescription", "description"
+    };
+    for (const char *k : description_keys) {
+      if (speed.contains(k)) {
+        const QString value = speed.value(k).toString().trimmed();
+        if (!value.isEmpty()) { carrot_navi_safety_description = value; break; }
       }
     }
   }
@@ -289,7 +301,7 @@ static bool carrotAtcTypeIn(int type, std::initializer_list<int> types) {
   return std::find(types.begin(), types.end(), type) != types.end();
 }
 
-static CarrotAtcKind carrotAtcKind(int type, const QString &text, int *direction) {
+[[maybe_unused]] static CarrotAtcKind carrotAtcKind(int type, const QString &text, int *direction) {
   *direction = 0;
   if (carrotAtcTypeIn(type, {12, 16})) {
     *direction = -1;
@@ -431,433 +443,322 @@ static void drawCarrotTurnArrow(QPainter &p, const QRect &box, int type, const Q
 
 void NvgWindow::drawCarrotNavi(QPainter &p) {
   const qint64 wall_now = QDateTime::currentMSecsSinceEpoch();
-  if (carrot_navi_updated_at == 0 || wall_now - static_cast<qint64>(carrot_navi_updated_at) > 35000) return;
-  const bool route_active = carrot_navi_route.size() >= 2 &&
-                            (carrot_navi_remain_distance > 0 || carrot_navi_remain_time > 0);
-  if (!route_active) return;
+  const bool navi_fresh = carrot_navi_updated_at != 0 &&
+                          wall_now - static_cast<qint64>(carrot_navi_updated_at) >= -5000 &&
+                          wall_now - static_cast<qint64>(carrot_navi_updated_at) <= 35000;
+  const bool route_active = carrot_navi_remain_distance > 0 &&
+                            carrot_navi_remain_time > 0;
+
+  // c3-wip DISPLAY state equivalent for EON. The target branch has no
+  // carrotMan DISPLAY message, so preserve the same 0.2 s MAP entry and
+  // 5 s ROAD return timing with the available ATC guidance state.
+  static bool carrot_map_mode = false;
+  static qint64 carrot_map_enter_since = 0;
+  static qint64 carrot_map_exit_since = 0;
+  if (!navi_fresh || !route_active) {
+    carrot_map_mode = false;
+    carrot_map_enter_since = 0;
+    carrot_map_exit_since = 0;
+    return;
+  }
 
   p.save();
   p.setRenderHint(QPainter::Antialiasing);
   p.setRenderHint(QPainter::TextAntialiasing);
-  // 우측 내비 패널
-  const int panel_y = 78;                  // 상단 정보줄 아래 18px 간격
-  const int panel_bottom = height() - 5;  // 좌측 HUD 하단과 동일, 상태바 위
-  const int panel_h = panel_bottom - panel_y;
 
-  // 내부 레이아웃
-  const int panel_header_h = 118;
-  const int next_h = 54;
-  const int panel_footer_h = 64;  // 흰 배경 큰 글씨(남은거리/도착)가 여유있게 들어가도록 확장
+  // Keep the guidance box tight to the bottom-right edge and narrow enough
+  // to leave the centered lane-width/debug strip unobstructed.
+  const qreal ui_scale = std::min(width() / 1920.0, height() / 1080.0);
+  const int right_margin = qRound(10 * ui_scale);
+  const int bottom_margin = qRound(5 * ui_scale);
+  const int panel_w = qRound(500 * ui_scale);
+  const int compact_h = qRound(320 * ui_scale);
+  const QRect compact_box(width() - right_margin - panel_w,
+                          height() - bottom_margin - compact_h,
+                          panel_w, compact_h);
 
-  const int gap1 = 10;
-  const int gap2 = 8;
-  const int bottom_margin = 14;
-  // 차선안내는 항상 티맵이 실제로 보낸 lane_bottom 이미지가 있을 때만 표시한다.
-  // (예전 turn_type 배열로 그리던 자체 벡터 아이콘 폴백은 완전히 제거)
-  const bool has_lane_image = !carrot_navi_lane_image.isNull() &&
-                              wall_now - carrot_navi_lane_image_mtime >= -5000 &&
-                              wall_now - carrot_navi_lane_image_mtime <= 5000;
-  const bool has_lane_guidance = has_lane_image;
+  int atc_direction = 0;
+  const CarrotAtcKind atc_kind = carrotAtcKind(carrot_navi_turn_type,
+                                               carrot_navi_instruction,
+                                               &atc_direction);
+  const qint64 guidance_age = wall_now -
+      static_cast<qint64>(carrot_navi_guidance_updated_at);
+  const bool atc_fresh = carrot_navi_guidance_updated_at != 0 &&
+                         guidance_age >= -5000 && guidance_age <= 3000;
+  const bool atc_available = carrot_atc_mode >= 1 && carrot_atc_mode <= 3 &&
+                             atc_fresh && carrot_navi_distance >= 0 &&
+                             atc_kind != CarrotAtcKind::NONE;
 
-  // Lane guidance no longer reserves its own row — like the real Tmap, it's
-  // a small overlay box drawn on top of the map (see lane_row below), so the
-  // map always gets the full height down to the footer regardless of
-  // has_lane_guidance.
-  const int map_to_footer_h = gap2;
-  const int map_h =
-      panel_h
-      - panel_header_h
-      - next_h
-      - panel_footer_h
-      - gap1
-      - map_to_footer_h
-      - bottom_margin;
+  // Match c3-wip's AutoTurnMapChange thresholds. Normal turns and forks use
+  // a road-speed-dependent 160-350 m start distance; U-turn uses 1000 m.
+  const qreal map_speed = std::clamp<qreal>(
+      carrot_navi_speed_limit > 0 ? carrot_navi_speed_limit : 50, 30.0, 100.0);
+  qreal atc_map_start_distance = map_speed <= 50.0
+      ? 160.0 + (map_speed - 30.0) * 2.0
+      : 200.0 + (map_speed - 50.0) * 3.0;
+  if (atc_kind == CarrotAtcKind::UTURN) atc_map_start_distance = 1000.0;
 
-  const QRect panel(width() - 475, panel_y, 440, panel_h);
+  const bool atc_map_request = atc_available &&
+                               carrot_navi_distance <= atc_map_start_distance;
+  if (atc_map_request) {
+    carrot_map_exit_since = 0;
+    if (carrot_map_enter_since == 0) carrot_map_enter_since = wall_now;
+    if (wall_now - carrot_map_enter_since >= 200) carrot_map_mode = true;
+  } else {
+    carrot_map_enter_since = 0;
+    if (carrot_map_mode) {
+      if (carrot_map_exit_since == 0) carrot_map_exit_since = wall_now;
+      if (wall_now - carrot_map_exit_since >= 5000) {
+        carrot_map_mode = false;
+        carrot_map_exit_since = 0;
+      }
+    } else {
+      carrot_map_exit_since = 0;
+    }
+  }
 
-  const QRect header(
-      panel.x(),
-      panel.y(),
-      panel.width(),
-      panel_header_h);
+  // Do not draw a separate navigation/ATC lane arrow in the road center.
+  // Guidance remains contained in the bottom-right information box.
 
-  const QRect next_row(
-      panel.x(),
-      header.bottom() + 1,
-      panel.width(),
-      next_h);
-
-  const QRect map_rect(
-      panel.x() + 14,
-      next_row.bottom() + gap1,
-      panel.width() - 28,
-      map_h);
-
-  // Small black box overlaid inside the map, bottom-anchored with a margin
-  // on all sides so it floats over the map surface the way Tmap's own lane
-  // guidance does — it never touches or reserves space from the footer.
-  const int lane_overlay_margin = 10;
-  const int lane_overlay_h = 70;
-  const int lane_inner_h = lane_overlay_h - 8;
-  const qreal lane_aspect = has_lane_image && carrot_navi_lane_image.height() > 0
-      ? static_cast<qreal>(carrot_navi_lane_image.width()) / carrot_navi_lane_image.height()
-      : 4.0;
-  const int lane_overlay_w = std::min(
-      map_rect.width() - lane_overlay_margin * 2,
-      std::max(lane_overlay_h, qRound(lane_inner_h * lane_aspect) + 12));
-  const QRect lane_row(
-      map_rect.center().x() - lane_overlay_w / 2,
-      map_rect.bottom() - lane_overlay_h - lane_overlay_margin,
-      lane_overlay_w,
-      lane_overlay_h);
-
-  const QRect footer(
-      panel.x() + 14,
-      map_rect.bottom() + gap2,
-      panel.width() - 28,
-      panel_footer_h);
-  p.setPen(QPen(QColor(255, 255, 255, 120), 2));
-  p.setBrush(QColor(8, 14, 18, 225));
-  p.drawRoundedRect(panel, 24, 24);
-
-  // Tmap-style primary guidance: green surface and high-contrast white content.
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(20, 126, 78));
-  p.drawRoundedRect(header, 24, 24);
-  p.drawRect(QRect(header.left(), header.bottom() - 24, header.width(), 25));
+  // The compact c3-wip information box remains visible for the whole route.
+  // MAP mode only adds the equally wide map panel above this box.
+  p.setPen(QPen(QColor(255, 255, 255, 220), std::max(1, qRound(2 * ui_scale))));
+  p.setBrush(QColor(0, 0, 0, 150));
+  p.drawRoundedRect(compact_box, qRound(30 * ui_scale), qRound(30 * ui_scale));
 
   QString title = carrot_navi_instruction;
   if (title.isEmpty()) title = carrot_navi_road;
   if (title.isEmpty()) title = QString::fromUtf8("경로 안내");
-  const QRect current_icon(header.x() + 14, header.y() + 10, 94, 108);
-  drawCarrotTurnArrow(p, current_icon, carrot_navi_turn_type, title, Qt::white, 11);
-  const QString distance_text = carrotDistanceText(carrot_navi_distance);
-  configFont(p, "Open Sans", 53, "Bold");
+  configFont(p, "Open Sans", std::max(18, qRound(30 * ui_scale)), "Bold");
   p.setPen(Qt::white);
-  p.drawText(QRect(header.x() + 118, header.y() + 6, header.width() - 132, 66),
+  p.drawText(QRect(compact_box.x() + qRound(14 * ui_scale),
+                   compact_box.y() + qRound(4 * ui_scale),
+                   compact_box.width() - qRound(28 * ui_scale),
+                   qRound(52 * ui_scale)),
              Qt::AlignLeft | Qt::AlignVCenter,
-             distance_text.isEmpty() ? QString::fromUtf8("안내 중") : distance_text);
-  configFont(p, "Open Sans", 31, "Bold");
-  const QString road_text = QFontMetrics(p.font()).elidedText(title, Qt::ElideRight, header.width() - 142);
-  p.drawText(QRect(header.x() + 118, header.y() + 70, header.width() - 132, 45),
-             Qt::AlignLeft | Qt::AlignVCenter, road_text);
+             QFontMetrics(p.font()).elidedText(
+                 title, Qt::ElideRight, compact_box.width() - qRound(28 * ui_scale)));
 
-  // Secondary maneuver row uses a darker green and a smaller white arrow.
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(10, 82, 50));
-  p.drawRect(next_row);
-  drawCarrotTurnArrow(p, QRect(next_row.x() + 14, next_row.y() + 7, 44, 44),
-                      carrot_navi_next_turn_type, carrot_navi_next_instruction,
-                      Qt::white, 5);
-  QString next_text = carrotDistanceText(carrot_navi_next_distance);
-  if (!carrot_navi_next_instruction.isEmpty()) {
-    next_text += (next_text.isEmpty() ? QString() : QString("  ·  ")) + carrot_navi_next_instruction;
+  const int turn_center_x = compact_box.x() + qRound(70 * ui_scale);
+  const int turn_center_y = compact_box.y() + qRound(166 * ui_scale);
+  const QRect turn_card(turn_center_x - qRound(56 * ui_scale),
+                        turn_center_y - qRound(102 * ui_scale),
+                        qRound(112 * ui_scale), qRound(245 * ui_scale));
+  const bool atc_prepare = atc_available && carrot_navi_distance > 350;
+  const QColor turn_fill = atc_available
+      ? (atc_prepare ? QColor(255, 170, 0, 210)   // orange: ATC preparation
+                     : QColor(0, 200, 70, 240))   // green: ATC active range
+      : QColor(55, 55, 55, 170);                  // gray: ATC inactive/waiting
+  p.setPen(QPen(QColor(0, 0, 0, 220), std::max(1, qRound(ui_scale))));
+  p.setBrush(turn_fill);
+  p.drawRoundedRect(turn_card, qRound(12 * ui_scale), qRound(12 * ui_scale));
+
+  const int turn_icon_w = qRound(106 * ui_scale);
+  const int turn_icon_h = qRound(158 * ui_scale);
+  const QRect turn_icon(turn_center_x - turn_icon_w / 2,
+                        turn_center_y - qRound(84 * ui_scale),
+                        turn_icon_w, turn_icon_h);
+  // Match c3-wip: use its original 256x256 PNG artwork for turns,
+  // forks/lane changes, and U-turns. Keep vector rendering only as a fallback
+  // if an asset cannot be loaded on the device.
+  static const QPixmap turn_left_pixmap("../assets/images/turn_l.png");
+  static const QPixmap turn_right_pixmap("../assets/images/turn_r.png");
+  static const QPixmap turn_uturn_pixmap("../assets/images/turn_u.png");
+  static const QPixmap fork_left_pixmap("../assets/images/lane_change_l.png");
+  static const QPixmap fork_right_pixmap("../assets/images/lane_change_r.png");
+  const QPixmap *turn_pixmap = nullptr;
+  if (atc_kind == CarrotAtcKind::TURN) {
+    turn_pixmap = atc_direction < 0 ? &turn_left_pixmap : &turn_right_pixmap;
+  } else if (atc_kind == CarrotAtcKind::FORK) {
+    turn_pixmap = atc_direction < 0 ? &fork_left_pixmap : &fork_right_pixmap;
+  } else if (atc_kind == CarrotAtcKind::UTURN) {
+    turn_pixmap = &turn_uturn_pixmap;
   }
-  if (next_text.isEmpty()) next_text = QString::fromUtf8("다음 안내 대기 중");
-  configFont(p, "Open Sans", 27, "Bold");
-  p.setPen(Qt::white);
-  p.drawText(QRect(next_row.x() + 68, next_row.y(), next_row.width() - 80, next_row.height()),
-             Qt::AlignLeft | Qt::AlignVCenter,
-             QFontMetrics(p.font()).elidedText(next_text, Qt::ElideRight, next_row.width() - 88));
 
-  // Prefer the Tmap-rendered map stream while it is fresh. Polling is capped at
-  // 5 Hz; the existing vector map below remains the complete fallback.
-  static const QString map_main_path = "/dev/shm/carrot_navi_map.jpg";
-  static QPixmap map_main_pixmap;
-  static uint64_t map_main_checked_at = 0;
-  static qint64 map_main_modified_at = 0;
-  const uint64_t map_main_now = millis_since_boot();
-  if (map_main_checked_at == 0 || map_main_now - map_main_checked_at >= 200) {
-    map_main_checked_at = map_main_now;
-    const QFileInfo map_main_info(map_main_path);
-    if (!map_main_info.exists() || !map_main_info.isFile() || map_main_info.size() <= 0) {
-      map_main_pixmap = QPixmap();
-      map_main_modified_at = 0;
+  if (turn_pixmap != nullptr && !turn_pixmap->isNull()) {
+    // The 256x256 assets contain generous transparent padding. Crop their
+    // shared center artwork region so the arrow fills the direction card.
+    const QRect turn_source(48, 48, 160, 160);
+    p.drawPixmap(turn_icon, *turn_pixmap, turn_source);
+  } else if (atc_kind == CarrotAtcKind::TURN ||
+             atc_kind == CarrotAtcKind::FORK ||
+             atc_kind == CarrotAtcKind::UTURN) {
+    drawCarrotTurnArrow(p, turn_icon, carrot_navi_turn_type,
+                        carrot_navi_instruction, Qt::white,
+                        std::max(6, qRound(13 * ui_scale)));
+  } else {
+    configFont(p, "Open Sans", std::max(18, qRound(32 * ui_scale)), "Bold");
+    p.setPen(Qt::white);
+    QString fallback_text = QString::fromUtf8("안내");
+    if (atc_kind == CarrotAtcKind::ROTARY) {
+      // c3-wip maps rotary guidance to xTurnInfo 5; its default HUD case shows "감속:5".
+      fallback_text = QString::fromUtf8("감속:5");
+    } else if (carrot_navi_turn_type > 0) {
+      // Match c3-wip's default switch case for positive, icon-less turn information.
+      fallback_text = QString::fromUtf8("감속:%1").arg(carrot_navi_turn_type);
+    }
+    p.drawText(turn_icon, Qt::AlignCenter, fallback_text);
+  }
+
+  configFont(p, "Open Sans", std::max(18, qRound(30 * ui_scale)), "Bold");
+  p.setPen(Qt::white);
+  const QString turn_distance = carrotDistanceText(carrot_navi_distance);
+  p.drawText(QRect(turn_card.x(), turn_card.bottom() - qRound(52 * ui_scale),
+                   turn_card.width(), qRound(46 * ui_scale)),
+             Qt::AlignCenter, turn_distance.isEmpty() ? QString("--") : turn_distance);
+
+  const int info_x = compact_box.x() + qRound(136 * ui_scale);
+  const int info_w = compact_box.right() - info_x - qRound(14 * ui_scale);
+  const QDateTime eta = QDateTime::currentDateTime().addSecs(carrot_navi_remain_time);
+  const int eta_hour = eta.time().hour();
+  const QString ampm_text = eta_hour < 12 ? QString::fromUtf8("오전") : QString::fromUtf8("오후");
+  const QString time_text = QString("%1:%2")
+      .arg(eta_hour % 12 == 0 ? 12 : eta_hour % 12)
+      .arg(eta.time().minute(), 2, 10, QChar('0'));
+  const bool distance_in_km = carrot_navi_remain_distance >= 1000;
+  const QString distance_text = carrot_navi_remain_distance < 0
+      ? QString("--")
+      : (distance_in_km
+          ? QString::number(carrot_navi_remain_distance / 1000.0, 'f', 1)
+          : QString::number(carrot_navi_remain_distance));
+  const QString distance_unit = carrot_navi_remain_distance < 0
+      ? QString()
+      : (distance_in_km ? QString("km") : QString("m"));
+
+  // Draw the ETA and remaining distance on one baseline with c3-style
+  // emphasis: time/distance are full size, while their labels and unit are smaller.
+  const int full_size = std::max(20, qRound(34 * ui_scale));
+  const int half_size = std::max(10, full_size / 2);
+  const int quarter_size = std::max(8, half_size / 2);
+  const int eta_baseline = compact_box.y() + qRound(126 * ui_scale);
+  int eta_x = info_x;
+  const auto draw_eta_part = [&](const QString &text, int font_size, int gap) {
+    configFont(p, "Open Sans", font_size, "Bold");
+    p.setPen(Qt::white);
+    p.drawText(eta_x, eta_baseline, text);
+    eta_x += QFontMetrics(p.font()).horizontalAdvance(text) + gap;
+  };
+  draw_eta_part(ampm_text, half_size, qRound(5 * ui_scale));
+  draw_eta_part(time_text, full_size, qRound(4 * ui_scale));
+  draw_eta_part(QString::fromUtf8("예정"), quarter_size, qRound(15 * ui_scale));
+  draw_eta_part(distance_text, full_size, qRound(3 * ui_scale));
+  draw_eta_part(distance_unit, half_size, 0);
+
+  QString road_text = carrot_navi_safety_description;
+  const bool has_safety_description = !road_text.isEmpty();
+  if (road_text.isEmpty()) road_text = carrot_navi_road;
+  if (road_text.isEmpty()) road_text = carrot_navi_next_instruction;
+  configFont(p, "Open Sans", std::max(17, qRound(28 * ui_scale)), "Bold");
+  const QRect road_box(info_x, compact_box.y() + qRound(230 * ui_scale),
+                       info_w, qRound(55 * ui_scale));
+  const QString visible_road_text =
+      QFontMetrics(p.font()).elidedText(road_text, Qt::ElideRight, info_w - qRound(13 * ui_scale));
+  if (has_safety_description && !visible_road_text.isEmpty()) {
+    const int pill_w = std::min(
+        info_w, QFontMetrics(p.font()).horizontalAdvance(visible_road_text) +
+                    qRound(16 * ui_scale));
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 120, 55, 230));
+    p.drawRoundedRect(QRect(road_box.x(), road_box.y() + qRound(4 * ui_scale),
+                            pill_w, road_box.height() - qRound(8 * ui_scale)),
+                      qRound(10 * ui_scale), qRound(10 * ui_scale));
+  }
+  p.setPen(Qt::white);
+  p.drawText(road_box.adjusted(qRound(6 * ui_scale), 0, 0, 0),
+             Qt::AlignLeft | Qt::AlignVCenter, visible_road_text);
+
+  // Poll and decode the EON Tmap JPEG at 5 Hz only while MAP mode is visible.
+  // The phone stream and /dev/shm file updates continue while hidden, but the
+  // EON skips QFileInfo/QPixmap JPEG work. Resetting the poll timestamp while
+  // hidden forces an immediate decode of the newest frame on MAP entry.
+  // No header, footer, or lane-image layer is drawn.
+  static const QString map_path = "/dev/shm/carrot_navi_map.jpg";
+  static QPixmap map_pixmap;
+  static uint64_t map_checked_at = 0;
+  static qint64 map_modified_at = 0;
+  const uint64_t map_now = millis_since_boot();
+  if (!carrot_map_mode) map_checked_at = 0;
+  if (carrot_map_mode &&
+      (map_checked_at == 0 || map_now - map_checked_at >= 200)) {
+    map_checked_at = map_now;
+    const QFileInfo map_info(map_path);
+    if (!map_info.exists() || !map_info.isFile() || map_info.size() <= 0) {
+      map_pixmap = QPixmap();
+      map_modified_at = 0;
     } else {
-      const qint64 modified_at = map_main_info.lastModified().toMSecsSinceEpoch();
-      if (map_main_pixmap.isNull() || modified_at != map_main_modified_at) {
+      const qint64 modified_at = map_info.lastModified().toMSecsSinceEpoch();
+      if (map_pixmap.isNull() || modified_at != map_modified_at) {
         QPixmap candidate;
-        if (candidate.load(map_main_path, "JPEG")) {
-          map_main_pixmap = candidate;
-          map_main_modified_at = modified_at;
+        if (candidate.load(map_path, "JPEG")) {
+          map_pixmap = candidate;
+          map_modified_at = modified_at;
         } else {
-          map_main_pixmap = QPixmap();
-          map_main_modified_at = 0;
+          map_pixmap = QPixmap();
+          map_modified_at = 0;
         }
       }
     }
   }
-  const qint64 map_main_age = wall_now - map_main_modified_at;
-  const bool map_main_fresh = !map_main_pixmap.isNull() &&
-                              map_main_age >= 0 && map_main_age <= 2500;
 
-  // CPU: pre-crop + pre-scale the JPEG once per source frame (≤5Hz) or once
-  // per map_rect resize, instead of re-running SmoothPixmapTransform on every
-  // UI paint (previously ~20Hz regardless of whether the source had changed).
-  static QPixmap map_main_scaled;
-  static qint64 map_main_scaled_src_modified_at = -1;
-  static int map_main_scaled_w = 0, map_main_scaled_h = 0;
-  if (map_main_fresh &&
-      (map_main_scaled_src_modified_at != map_main_modified_at ||
-       map_main_scaled_w != map_rect.width() || map_main_scaled_h != map_rect.height())) {
-    // map_main is rendered at 160 dpi. Crop the proportional Android/Tmap
-    // status bar, then use a centered 1.18x cover crop so the map keeps its
-    // aspect ratio instead of being stretched to the panel dimensions.
-    const qreal status_bar_h = std::min<qreal>(map_main_pixmap.height() / 8.0,
-                                               map_main_pixmap.width() * 0.05);
-    const QRectF map_content(0.0, status_bar_h, map_main_pixmap.width(),
-                             map_main_pixmap.height() - status_bar_h);
-    const qreal target_aspect = static_cast<qreal>(map_rect.width()) / map_rect.height();
-    qreal source_w = map_content.width();
-    qreal source_h = map_content.height();
-    if (source_w / source_h > target_aspect) {
-      source_w = source_h * target_aspect;
-    } else {
-      source_h = source_w / target_aspect;
-    }
-    constexpr qreal map_zoom = 1.18;
-    source_w /= map_zoom;
-    source_h /= map_zoom;
-    const QRectF map_source(map_content.center().x() - source_w / 2.0,
-                            map_content.center().y() - source_h / 2.0,
-                            source_w, source_h);
-    QPixmap cropped = map_main_pixmap.copy(map_source.toRect())
-                          .scaled(map_rect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    // Bake the rounded-corner mask in here, once per source frame, instead of
-    // clipping with a QPainterPath on every single UI paint. Use a QImage
-    // with an explicit alpha format — a bare QPixmap isn't guaranteed to
-    // carry an alpha channel, so the transparent corners could come out
-    // opaque/garbage on some backends.
-    QImage rounded(map_rect.size(), QImage::Format_ARGB32_Premultiplied);
-    rounded.fill(Qt::transparent);
-    QPainter rp(&rounded);
-    rp.setRenderHint(QPainter::Antialiasing);
-    QPainterPath mask;
-    mask.addRoundedRect(QRectF(QPointF(0, 0), map_rect.size()), 14, 14);
-    rp.setClipPath(mask);
-    rp.drawPixmap(0, 0, cropped);
-    rp.end();
-    map_main_scaled = QPixmap::fromImage(rounded);
-    map_main_scaled_src_modified_at = map_main_modified_at;
-    map_main_scaled_w = map_rect.width();
-    map_main_scaled_h = map_rect.height();
-  }
+  const qint64 map_age = wall_now - map_modified_at;
+  const bool map_fresh = !map_pixmap.isNull() && map_age >= 0 && map_age <= 2500;
+  if (carrot_map_mode && map_fresh) {
+    // The top status line occupies y=12..60. Start the map below it with a
+    // visible gap so it never covers the live torque/steer-ratio values.
+    const int map_top = qRound(80 * ui_scale);
+    const int map_gap = qRound(10 * ui_scale);
+    const int map_h = compact_box.top() - map_gap - map_top;
+    const QRect map_panel(compact_box.x(), map_top, compact_box.width(),
+                          std::max(1, map_h));
 
-  if (map_main_fresh) {
-    // The real Tmap frame fully covers map_rect — the vector fallback below
-    // would be entirely hidden, so skip drawing it and save the CPU. Corner
-    // rounding is already baked into map_main_scaled (see above).
-    p.drawPixmap(map_rect.topLeft(), map_main_scaled);
-  } else {
-  // Lightweight schematic map background: a few fixed vector shapes only.
-  QPainterPath map_clip;
-  map_clip.addRoundedRect(map_rect, 14, 14);
-  p.save();
-  p.setClipPath(map_clip);
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(34, 44, 51));
-  p.drawRect(map_rect);
-  p.setBrush(QColor(35, 72, 58));
-  p.drawRoundedRect(QRect(map_rect.x() + 20, map_rect.y() + 18, 105, 67), 12, 12);
-  p.drawRoundedRect(QRect(map_rect.right() - 115, map_rect.bottom() - 78, 96, 59), 12, 12);
-  QPainterPath water;
-  water.moveTo(map_rect.left() - 10, map_rect.y() + 205);
-  water.cubicTo(map_rect.x() + 100, map_rect.y() + 150, map_rect.x() + 250, map_rect.y() + 245,
-                map_rect.right() + 10, map_rect.y() + 185);
-  water.lineTo(map_rect.right() + 10, map_rect.bottom() + 20);
-  water.lineTo(map_rect.left() - 10, map_rect.bottom() + 20);
-  water.closeSubpath();
-  p.setBrush(QColor(38, 75, 96));
-  p.drawPath(water);
-  p.setBrush(QColor(55, 62, 68));
-  for (int i = 0; i < 6; ++i) {
-    const int bx = map_rect.x() + 24 + (i % 3) * 113;
-    const int by = map_rect.y() + 99 + (i / 3) * 58;
-    p.drawRoundedRect(QRect(bx, by, 66 + (i % 2) * 18, 30), 4, 4);
-  }
-  QPainterPath road_a, road_b, road_c;
-  road_a.moveTo(map_rect.left() - 10, map_rect.y() + 85);
-  road_a.cubicTo(map_rect.x() + 115, map_rect.y() + 135, map_rect.x() + 260, map_rect.y() + 30,
-                 map_rect.right() + 10, map_rect.y() + 74);
-  road_b.moveTo(map_rect.x() + 82, map_rect.top() - 10);
-  road_b.cubicTo(map_rect.x() + 105, map_rect.y() + 105, map_rect.x() + 42, map_rect.y() + 205,
-                 map_rect.x() + 142, map_rect.bottom() + 10);
-  road_c.moveTo(map_rect.x() + 274, map_rect.top() - 10);
-  road_c.cubicTo(map_rect.x() + 232, map_rect.y() + 78, map_rect.x() + 350, map_rect.y() + 155,
-                 map_rect.x() + 306, map_rect.bottom() + 10);
-  p.setBrush(Qt::NoBrush);
-  p.setPen(QPen(QColor(18, 23, 27, 130), 13, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  p.drawPath(road_a); p.drawPath(road_b); p.drawPath(road_c);
-  p.setPen(QPen(QColor(104, 110, 114), 7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  p.drawPath(road_a); p.drawPath(road_b); p.drawPath(road_c);
-
-  if (carrot_navi_route.size() >= 2) {
-    double min_lon = carrot_navi_route[0].x(), max_lon = min_lon;
-    double min_lat = carrot_navi_route[0].y(), max_lat = min_lat;
-    for (const QPointF &point : carrot_navi_route) {
-      min_lon = std::min(min_lon, point.x()); max_lon = std::max(max_lon, point.x());
-      min_lat = std::min(min_lat, point.y()); max_lat = std::max(max_lat, point.y());
-    }
-    const bool has_car = std::abs(carrot_navi_lat) > 0.000001 && std::abs(carrot_navi_lon) > 0.000001;
-    if (has_car && carrot_navi_lon > min_lon - 0.02 && carrot_navi_lon < max_lon + 0.02 &&
-        carrot_navi_lat > min_lat - 0.02 && carrot_navi_lat < max_lat + 0.02) {
-      min_lon = std::min(min_lon, carrot_navi_lon); max_lon = std::max(max_lon, carrot_navi_lon);
-      min_lat = std::min(min_lat, carrot_navi_lat); max_lat = std::max(max_lat, carrot_navi_lat);
-    }
-    const double lon_span = std::max(0.00001, max_lon - min_lon);
-    const double lat_span = std::max(0.00001, max_lat - min_lat);
-    const double scale = std::min((map_rect.width() - 28) / lon_span, (map_rect.height() - 28) / lat_span);
-    const double left = map_rect.center().x() - lon_span * scale / 2.0;
-    const double top = map_rect.center().y() - lat_span * scale / 2.0;
-    const auto project = [&](double lon, double lat) {
-      return QPointF(left + (lon - min_lon) * scale, top + (max_lat - lat) * scale);
-    };
-
-    int car_idx = 0;
-    if (has_car) {
-      double best = 1e18;
-      for (int i = 0; i < carrot_navi_route.size(); ++i) {
-        const double dlon = carrot_navi_route[i].x() - carrot_navi_lon;
-        const double dlat = carrot_navi_route[i].y() - carrot_navi_lat;
-        const double d = dlon * dlon + dlat * dlat;
-        if (d < best) { best = d; car_idx = i; }
+    // Rebuild the crop only for a new Tmap frame or a geometry change. This
+    // keeps map-only mode inexpensive on EON/C3 while paintEvent runs at UI Hz.
+    static QImage map_scaled;
+    static qint64 map_scaled_modified_at = -1;
+    static QSize map_scaled_size;
+    if (map_scaled_modified_at != map_modified_at ||
+        map_scaled_size != map_panel.size()) {
+      const qreal status_bar_h = std::min<qreal>(
+          map_pixmap.height() / 8.0, map_pixmap.width() * 0.05);
+      const QRectF content(0.0, status_bar_h, map_pixmap.width(),
+                           map_pixmap.height() - status_bar_h);
+      const qreal target_aspect =
+          static_cast<qreal>(map_panel.width()) / map_panel.height();
+      qreal source_w = content.width();
+      qreal source_h = content.height();
+      if (source_w / source_h > target_aspect) {
+        source_w = source_h * target_aspect;
+      } else {
+        source_h = source_w / target_aspect;
       }
-    }
-    const auto smooth_path = [&](int first, int last) {
-      QPainterPath path;
-      if (first < 0 || last < first || last >= carrot_navi_route.size()) return path;
-      path.moveTo(project(carrot_navi_route[first].x(), carrot_navi_route[first].y()));
-      for (int i = first + 1; i < last; ++i) {
-        const QPointF point = project(carrot_navi_route[i].x(), carrot_navi_route[i].y());
-        const QPointF next = project(carrot_navi_route[i + 1].x(), carrot_navi_route[i + 1].y());
-        path.quadTo(point, (point + next) / 2.0);
-      }
-      if (last > first) path.lineTo(project(carrot_navi_route[last].x(), carrot_navi_route[last].y()));
-      return path;
-    };
+      const QRectF source_rect(content.center().x() - source_w / 2.0,
+                               content.center().y() - source_h / 2.0,
+                               source_w, source_h);
+      const QPixmap scaled = map_pixmap.copy(source_rect.toRect()).scaled(
+          map_panel.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 
-    const QPainterPath full_path = smooth_path(0, carrot_navi_route.size() - 1);
-    const QPainterPath remain_path = smooth_path(car_idx, carrot_navi_route.size() - 1);
-    p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(QColor(0, 0, 0, 185), 22, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    p.drawPath(full_path);
-    if (car_idx > 0) {
-      // Tmap day 테마의 unselected 경로 색(#8C9299)과 동일하게 지나온 구간 표시
-      p.setPen(QPen(QColor(0x8C, 0x92, 0x99), 10, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      p.drawPath(smooth_path(0, car_idx));
-    }
-    // Tmap theme_navi_day.json 의 routeLine 색(strokeColor #254ea1 / fillColor #3673ee, width 17)과 동일하게 맞춤
-    p.setPen(QPen(QColor(0x25, 0x4e, 0xa1), 17, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    p.drawPath(remain_path);
-    p.setPen(QPen(QColor(0x36, 0x73, 0xee), 12, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    p.drawPath(remain_path);
-    p.setPen(QPen(QColor(112, 207, 255), 4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    p.drawPath(remain_path);
+      QImage rounded(map_panel.size(), QImage::Format_ARGB32_Premultiplied);
+      rounded.fill(Qt::transparent);
+      QPainter map_painter(&rounded);
+      map_painter.setRenderHint(QPainter::Antialiasing);
+      QPainterPath clip;
+      clip.addRoundedRect(QRectF(QPointF(0, 0), map_panel.size()),
+                          qRound(30 * ui_scale), qRound(30 * ui_scale));
+      map_painter.setClipPath(clip);
+      map_painter.drawPixmap(0, 0, scaled);
+      map_painter.end();
 
-    const QPointF destination = project(carrot_navi_route.last().x(), carrot_navi_route.last().y());
-    p.setPen(QPen(Qt::white, 3)); p.setBrush(QColor(238, 74, 72));
-    p.drawEllipse(destination, 11, 11);
-    if (has_car) {
-      const QPointF car = project(carrot_navi_lon, carrot_navi_lat);
-      const int next_index = std::min(car_idx + 1, carrot_navi_route.size() - 1);
-      const QPointF ahead = project(carrot_navi_route[next_index].x(), carrot_navi_route[next_index].y());
-      p.save();
-      p.translate(car);
-      p.rotate(atan2(ahead.y() - car.y(), ahead.x() - car.x()) * 57.29577951);
-      QPainterPath car_arrow;
-      car_arrow.moveTo(17, 0); car_arrow.lineTo(-10, -12); car_arrow.lineTo(-4, 0);
-      car_arrow.lineTo(-10, 12); car_arrow.closeSubpath();
-      p.setPen(QPen(Qt::white, 2)); p.setBrush(QColor(26, 190, 104));
-      p.drawPath(car_arrow);
-      p.restore();
+      map_scaled = rounded;
+      map_scaled_modified_at = map_modified_at;
+      map_scaled_size = map_panel.size();
     }
-  }
-  p.restore();
+
+    p.setPen(QPen(QColor(255, 255, 255, 220),
+                  std::max(1, qRound(2 * ui_scale))));
+    p.setBrush(QColor(0, 0, 0, 150));
+    p.drawRoundedRect(map_panel, qRound(30 * ui_scale), qRound(30 * ui_scale));
+    p.drawImage(map_panel.topLeft(), map_scaled);
   }
 
-  // Lane guidance: draw Tmap's own lane_bottom capture as-is, as a small
-  // overlay box floating inside the map (lane_row is now inset from
-  // map_rect's bottom, not a separate row — see layout above). There is no
-  // placeholder/vector fallback any more — has_lane_guidance is exactly
-  // has_lane_image, so this whole block is skipped unless Tmap is actually
-  // sending a fresh lane message right now.
-  if (has_lane_guidance) {
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(18, 26, 32, 235));
-    p.drawRoundedRect(lane_row, 12, 12);
-
-    QPainterPath lane_clip;
-    lane_clip.addRoundedRect(lane_row, 12, 12);
-    p.save();
-    p.setClipPath(lane_clip);
-    // Keep a small inset and fit the complete Tmap capture inside the box.
-    // KeepAspectRatioByExpanding cropped the outer direction arrows whenever
-    // the capture and overlay aspect ratios differed.
-    const QRect lane_image_rect = lane_row.adjusted(6, 4, -6, -4);
-
-    // Smooth scaling is expensive on EON. Rebuild the cache only for a new
-    // source image (cache cleared in updateCarrotNavi) or a new target size.
-    if (carrot_navi_lane_scaled_image.isNull() ||
-        carrot_navi_lane_scaled_width != lane_image_rect.width() ||
-        carrot_navi_lane_scaled_height != lane_image_rect.height()) {
-      carrot_navi_lane_scaled_image = carrot_navi_lane_image.scaled(
-          lane_image_rect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-      carrot_navi_lane_scaled_width = lane_image_rect.width();
-      carrot_navi_lane_scaled_height = lane_image_rect.height();
-    }
-    const QPoint lane_image_pos(
-        lane_image_rect.x() + (lane_image_rect.width() - carrot_navi_lane_scaled_image.width()) / 2,
-        lane_image_rect.y() + (lane_image_rect.height() - carrot_navi_lane_scaled_image.height()) / 2);
-    p.drawPixmap(lane_image_pos, carrot_navi_lane_scaled_image);
-    p.restore();
-  }
-
-  // Remaining distance and ETA: match Tmap's own bottom bar — white surface,
-  // black bold text, each side sized as large as it can be without the two
-  // halves (or the divider) overlapping.
-  p.setPen(Qt::NoPen);
-  p.setBrush(QColor(255, 255, 255, 250));
-  p.drawRoundedRect(footer, 12, 12);
-
-  const QString remain_text = carrotDistanceText(carrot_navi_remain_distance);
-  const QString eta_text = carrot_navi_remain_time > 0
-    ? QDateTime::currentDateTime().addSecs(carrot_navi_remain_time).toString("HH:mm") : QString("--:--");
-  const QString left_text = QString::fromUtf8("남은 거리 %1").arg(remain_text.isEmpty() ? QString("--") : remain_text);
-  const QString right_text = QString::fromUtf8("도착 %1").arg(eta_text);
-
-  const int pad = 16;
-  const int half_w = footer.width() / 2 - pad - 6;
-  // CPU: the text (and therefore the fitted size) only actually changes when
-  // updateCarrotNavi() refreshes (≤2Hz) or the ETA clock ticks over a minute —
-  // not on every ~20Hz UI paint. Cache per side so the shrink-to-fit loop only
-  // reruns when its own text or the box width actually changed.
-  static QString left_cache_text; static int left_cache_w = -1; static int left_cache_size = 34;
-  static QString right_cache_text; static int right_cache_w = -1; static int right_cache_size = 34;
-  const auto fitFontSize = [&](const QString &text, int max_w,
-                               QString &cache_text, int &cache_w, int &cache_size) {
-    if (cache_text != text || cache_w != max_w) {
-      int size = 34;
-      for (; size > 18; --size) {
-        configFont(p, "Open Sans", size, "Bold");
-        if (QFontMetrics(p.font()).horizontalAdvance(text) <= max_w) break;
-      }
-      cache_text = text;
-      cache_w = max_w;
-      cache_size = size;
-    }
-    configFont(p, "Open Sans", cache_size, "Bold");
-  };
-
-  p.setPen(QColor(20, 20, 20));
-  fitFontSize(left_text, half_w, left_cache_text, left_cache_w, left_cache_size);
-  p.drawText(QRect(footer.x() + pad, footer.y(), half_w, footer.height()),
-             Qt::AlignLeft | Qt::AlignVCenter, left_text);
-
-  fitFontSize(right_text, half_w, right_cache_text, right_cache_w, right_cache_size);
-  p.drawText(QRect(footer.center().x() + 6, footer.y(), half_w, footer.height()),
-             Qt::AlignRight | Qt::AlignVCenter, right_text);
-
-  p.setPen(QPen(QColor(210, 210, 210), 2));
-  p.drawLine(footer.center().x(), footer.y() + 10, footer.center().x(), footer.bottom() - 10);
   p.restore();
 }

@@ -110,16 +110,15 @@ protected:
   int  blink_timer = 0;
   int  carrot_param_timer = 0;
   int  my_driving_mode = 3;
-  int  show_device_state = 0;
   int  carrot_atc_mode = 0;
+  int  carrot_atc_speed = 30;
+  int  carrot_atc_end_time = 6;
   int  show_datetime = 1;
   int  show_gear_animation = 1;
   int  show_bsd_always = 0;
   int  show_carrot_hud = 1;
-  // ATC 상태박스(파랑=조향개입)를 desire_helper.py 의 페이드아웃과 맞추기 위한 값들.
-  int atc_ui_direction_latched = 0;
-  float atc_ui_turn_ll_prob = 1.0f;
-  uint64_t atc_ui_last_frame_ms = 0;
+  int  show_path_status_color = 1;
+  int  show_path_brake_border = 1;
   uint64_t carrot_navi_last_read = 0;
   uint64_t eon_cluster_hud_last_read = 0;
   bool eon_cluster_hud_connected = false;
@@ -138,6 +137,7 @@ protected:
   int carrot_navi_remain_distance = -1;
   int carrot_navi_remain_time = -1;
   int carrot_navi_speed_limit = 0;
+  QString carrot_navi_safety_description;
   QVector<int> carrot_navi_lane_types;
   QVector<int> carrot_navi_lane_active;
   bool carrot_navi_lanes_ahead = false;
@@ -149,7 +149,7 @@ protected:
   float lead_box_w = 0.0f, lead_box_x = 0.0f, lead_box_y = 0.0f;   // 리드박스 EMA
 
   // ── 팝업 애니메이션 (carrot ui_draw_text_a 이식) ──
-  void ctTextAnimStart(int x, int y, const QString &text, int size, const QColor &color);
+  void ctTextAnimStart(int x, int y, const QString &text, int size, const QColor &color, bool enabled);
   void drawTextAnim(QPainter &p);
   int     anim_time = 0;        // 0 이면 비활성
   int     anim_x = 0, anim_y = 0, anim_size = 0;
@@ -192,4 +192,3 @@ private slots:
   void offroadTransition(bool offroad);
   void updateState(const UIState &s);
 };
-

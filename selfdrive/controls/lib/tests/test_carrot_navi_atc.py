@@ -1,4 +1,25 @@
-from selfdrive.controls.lib.carrot_navi_atc import AtcForkLaneChangeController
+from selfdrive.controls.lib.carrot_navi_atc import CarrotNaviAtc, AtcForkLaneChangeController
+
+
+def test_next_maneuver_speed_limit_is_independent_from_steering():
+  current = {"fresh": True, "kind": "fork", "direction": 1,
+             "distance": 120.0, "turn_type": 6, "text": "exit"}
+  following = {"fresh": True, "kind": "turn", "direction": 1,
+               "distance": 300.0, "turn_type": 13, "text": "right"}
+  current["next"] = following
+
+  current_limit, next_limit = CarrotNaviAtc.speed_limits_kph(current, 30.0, 6.0)
+  assert current_limit is None
+  assert next_limit is not None
+  assert CarrotNaviAtc.steering_request(current, 10.0) == 0
+
+
+def test_stale_next_maneuver_has_no_speed_limit():
+  current = {"fresh": True, "kind": "turn", "direction": -1,
+             "distance": 100.0, "turn_type": 12, "text": "left", "next": None}
+  current_limit, next_limit = CarrotNaviAtc.speed_limits_kph(current)
+  assert current_limit is not None
+  assert next_limit is None
 
 
 def fork_state(distance=300.0, direction=1, turn_type=6, text="right exit"):

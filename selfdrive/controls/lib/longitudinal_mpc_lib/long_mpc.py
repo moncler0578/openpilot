@@ -65,9 +65,8 @@ STOP_DISTANCE_E2E = 6.0
 
 # ── Lead 부드러운 전환 파라미터 ──────────────────────────────────────────────
 LEAD_DETECT_RAMP_T = 0.05  # c3-wip: no extra lead-input delay
-LEAD_SMOOTH_ALPHA  = 1.0   # radar state is already filtered
-T_FOLLOW_MAX_RATE  = 100.0 # apply the selected gap directly
-T_FOLLOW_DECREASE_RATE = 0.30  # seconds of TR reduced per second
+T_FOLLOW_RISE_RATE = 0.30
+T_FOLLOW_DECEL_RISE_RATE = 0.60
 LEAD_RAMP_BYPASS_TTC = 5.0 # 이보다 급한 접근은 ramp 없이 즉시 원본 lead 반영
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -90,8 +89,6 @@ def get_stopped_equivalence_factor(v_lead, v_ego=0., t_follow=T_FOLLOW, stop_dis
     v_diff_offset = ((v_lead - v_ego) * 1.)
     v_diff_offset = np.clip(v_diff_offset, 0, stop_dist / 2)
     v_diff_offset = np.maximum(v_diff_offset * ((10 - v_ego) / 10), 0)
-    low_speed_scale = np.clip(v_ego / 5.0, 0.0, 1.0)
-    v_diff_offset *= low_speed_scale
 
   distance = (v_lead**2) / (2 * COMFORT_BRAKE) + v_diff_offset
   return distance
@@ -230,17 +227,11 @@ class LongitudinalMpc:
     self.a_desired = 0.
     self.solver = AcadosOcpSolverCython(MODEL_NAME, ACADOS_SOLVER_TYPE, N)
 
-    self.human_following = False
-    self.lead_tracking_prob = 0.0
-    self._hf_j_multiplier = 1.0
-    self._hf_a_change_multiplier = 1.0
-    self._hf_danger_zone_multiplier = 1.0
-    self._hf_danger_factor = LEAD_DANGER_FACTOR
-
     # ── CarrotPilot Auto-Tuner: 학습된 GAP별 추종거리 (초 리스트, None=미사용) ──
     # longitudinal_planner.read_param()에서 5초 주기로 갱신됨.
     self.tfollow_gaps = None
     self.t_follow_speed_ratio = 1.2
+    self.t_follow_decel_boost = 0.5
     self._tf_applied = 0.0
     self._tf_v_ego_kph = 0.0
     # ────────────────────────────────────────────────────────────────────
@@ -248,9 +239,6 @@ class LongitudinalMpc:
     # ── Lead 인식 부드러운 전환 상태 변수 ──────────────────────────────────
     self._lead_detected   = False
     self._lead_detect_t   = 0.0       # 인식 후 경과 시간 (ramp 용)
-    self._lead_d_filt     = 50.0      # 지수평균 필터링된 선행차 거리
-    self._lead_v_filt     = 0.0       # 지수평균 필터링된 선행차 속도
-    self._t_follow_smooth = T_FOLLOW  # rate-limited t_follow
     self.driving_mode_tf = 1.0        # MyDrivingMode 추종거리 배율 (planner 가 갱신)
     self.desired_distance = 0.0       # UI 표시용 목표 차간거리(m)
     self.traffic_stop_active = False
@@ -295,89 +283,11 @@ class LongitudinalMpc:
     # ── Lead 필터 상태 리셋 ────────────────────────────────────────────────
     self._lead_detected   = False
     self._lead_detect_t   = 0.0
-    self._lead_d_filt     = 50.0
-    self._lead_v_filt     = 0.0
-    self._t_follow_smooth = T_FOLLOW
     self._tf_applied = 0.0
     self._tf_v_ego_kph = 0.0
     # ────────────────────────────────────────────────────────────────────
 
     self.set_weights()
-
-  # ── Human-Like Following: 핵심 오프셋 계산 ──────────────────────────────
-  def _apply_human_following(self, lead_distance, v_ego, v_lead, lead_ramp=1.0, t_follow_base=T_FOLLOW):
-    """
-    frogpilot_following.py 의 update_follow_values() 로직을
-    long_mpc 내부 변수(t_follow, params[:,5], cost 배율)에 직접 반영.
-
-    lead_ramp     : 0(새 인식) → 1(안정 추종) — 효과 점진 적용
-    t_follow_base : HF 적용 전 base 추종거리. ramp 보간의 기준점.
-                    (Auto-Tuner 학습 GAP값 사용 시에도 학습된 base로 수렴하도록
-                     상수 T_FOLLOW 대신 base를 기준으로 보간)
-    offset 계산을 ** 0.6 거듭제곱으로 완만하게,
-    danger/speed 반응도 /150 으로 줄여 부드럽게 처리.
-
-    변수 매핑
-      acceleration_jerk / speed_jerk  →  _hf_j_multiplier (J_EGO_COST 배율)
-      danger_jerk(미사용)              →  _hf_danger_zone_multiplier
-      a_change                        →  _hf_a_change_multiplier (A_CHANGE_COST 배율)
-      danger_factor                   →  _hf_danger_factor → params[:,5]
-      t_follow                        →  self.t_follow
-    """
-    # 매 호출 전 초기화
-    j_mult        = 1.0
-    a_ch_mult     = 1.0
-    dz_mult       = 1.0
-    danger_factor = LEAD_DANGER_FACTOR
-
-    # ── 빠른 선행차: 자연스럽게 따라붙기 ──
-    if v_lead > v_ego:
-      distance_factor     = max(lead_distance - (v_ego * self.t_follow), 1)
-      raw_offset          = float(np.clip(STOP_DISTANCE - v_ego, 1, distance_factor))
-      # ** 0.6 으로 스케일 완화 (급격한 나눗셈 방지)
-      accelerating_offset = max(1.0 + (raw_offset - 1.0) ** 0.6, 1.0)
-
-      self.t_follow   /= accelerating_offset
-      j_mult          /= accelerating_offset
-      a_ch_mult       /= accelerating_offset
-      danger_factor   -= (v_lead - v_ego) / 150.0  # 원본 100 → 150: 더 완만하게
-
-    # ── 느린 선행차: 자연스럽게 감속 ──
-    if v_lead < v_ego:
-      distance_factor = max(lead_distance - (v_lead * self.t_follow), 1)
-      raw_offset      = float(np.clip(
-        min(v_ego - v_lead, v_lead) - COMFORT_BRAKE, 1, distance_factor))
-      # ** 0.6 으로 스케일 완화
-      braking_offset  = max(1.0 + (raw_offset - 1.0) ** 0.6, 1.0)
-
-      if lead_distance >= 100:
-        far_lead_offset  = max(lead_distance - (v_ego * self.t_follow) - STOP_DISTANCE, 0)
-        braking_offset  += far_lead_offset * 0.4  # 원본 1.0 → 0.4
-
-      # 레이더 신뢰도가 높을 때만 적용
-      if self.lead_tracking_prob >= 0.9:
-        danger_factor  += (v_ego - v_lead) / 150.0  # 원본 100 → 150
-        self.t_follow  /= braking_offset
-
-    # t_follow 는 안전 하한선 보장
-    self.t_follow = max(self.t_follow, 0.9)
-
-    # ── lead_ramp: 새 인식 직후 HF 효과를 서서히 적용 ────────────────────
-    # ramp < 1.0 구간에서는 base 추종거리 방향으로 선형 보간
-    # (Auto-Tuner 학습 GAP 사용 시 상수 T_FOLLOW로 끌려가는 출렁임 방지)
-    if lead_ramp < 1.0:
-      self.t_follow = t_follow_base + (self.t_follow - t_follow_base) * lead_ramp
-      danger_factor = LEAD_DANGER_FACTOR + (danger_factor - LEAD_DANGER_FACTOR) * lead_ramp
-      j_mult        = 1.0 + (j_mult    - 1.0) * lead_ramp
-      a_ch_mult     = 1.0 + (a_ch_mult - 1.0) * lead_ramp
-    # ─────────────────────────────────────────────────────────────────────
-
-    # danger_factor 범위 제한 (0.5 ~ 1.1)
-    self._hf_danger_factor          = float(np.clip(danger_factor, 0.5, 1.1))
-    self._hf_j_multiplier           = float(np.clip(j_mult,    0.05, 2.0))
-    self._hf_a_change_multiplier    = float(np.clip(a_ch_mult, 0.05, 2.0))
-    self._hf_danger_zone_multiplier = float(np.clip(dz_mult,   0.5,  2.0))
-  # ──────────────────────────────────────────────────────────────────────
 
   def set_cost_weights(self, cost_weights, constraint_cost_weights):
     W = np.asfortranarray(np.diag(cost_weights))
@@ -403,9 +313,9 @@ class LongitudinalMpc:
     j_ego_v_ego    = 1
     a_change_v_ego = 1
     if (v_lead0 - v_ego >= 0) and (v_lead1 - v_ego >= 0):
-      v_ego_bps = [0, 3, 10]
-      j_ego_v_ego    = interp(v_ego, v_ego_bps, [0.15, 0.45, 1.0])
-      a_change_v_ego = interp(v_ego, v_ego_bps, [0.15, 0.45, 1.0])
+      v_ego_bps = [0, 10]
+      j_ego_v_ego    = interp(v_ego, v_ego_bps, [0.05, 1.0])
+      a_change_v_ego = interp(v_ego, v_ego_bps, [0.05, 1.0])
 
     j_ego    = min(j_ego_tf, j_ego_v_ego)
     a_change = min(a_change_tf, a_change_v_ego)
@@ -419,22 +329,15 @@ class LongitudinalMpc:
       self.prev_a = np.full(N+1, a_desired)
 
     if self.mode == 'acc':
-      a_change_cost = A_CHANGE_COST if prev_accel_constraint else 10.0
+      a_change_cost = A_CHANGE_COST if prev_accel_constraint else 0.0
 
       if self.applyLongDynamicCost:
         cost_multipliers = self.get_cost_multipliers(v_lead0, v_lead1)
-
-        # ── Human-Like Following: 기존 multiplier에 추가 배율 적용 ──
-        j_mult    = cost_multipliers[1] * self._hf_j_multiplier
-        a_ch_mult = cost_multipliers[0] * self._hf_a_change_multiplier
-        dz_mult   = cost_multipliers[2] * self._hf_danger_zone_multiplier
-
         cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST,
-                        a_change_cost * a_ch_mult,
-                        J_EGO_COST * j_mult]
+                        a_change_cost * cost_multipliers[0],
+                        J_EGO_COST * cost_multipliers[1]]
         constraint_cost_weights = [LIMIT_COST, LIMIT_COST, LIMIT_COST,
-                                   DANGER_ZONE_COST * dz_mult]
-        # ────────────────────────────────────────────────────────────────
+                                   DANGER_ZONE_COST * cost_multipliers[2]]
       else:
         cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, a_change_cost, J_EGO_COST]
         constraint_cost_weights = [LIMIT_COST, LIMIT_COST, LIMIT_COST, DANGER_ZONE_COST]
@@ -494,32 +397,19 @@ class LongitudinalMpc:
     v_ego = self.x0[1]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
-    # ── Lead 인식 전환 부드럽게 (지수이동평균 + ramp) ──────────────────────
+    # ── Lead 인식 전환 ramp ──────────────────────────────────────────────
     DT_UPDATE   = 0.05  # update 주기 50 ms
     lead_status = radarstate.leadOne.status
 
     if lead_status:
       if not self._lead_detected:
-        # 새로 인식: 필터 초기값을 현재 raw값으로 세팅 (첫 프레임 튐 방지)
-        self._lead_d_filt   = radarstate.leadOne.dRel
-        self._lead_v_filt   = radarstate.leadOne.vLead
         self._lead_detect_t = 0.0
         self._lead_detected = True
-      # 지수이동평균으로 거리/속도 노이즈 필터링
-      self._lead_d_filt = ((1.0 - LEAD_SMOOTH_ALPHA) * self._lead_d_filt
-                           + LEAD_SMOOTH_ALPHA * radarstate.leadOne.dRel)
-      self._lead_v_filt = ((1.0 - LEAD_SMOOTH_ALPHA) * self._lead_v_filt
-                           + LEAD_SMOOTH_ALPHA * radarstate.leadOne.vLead)
       self._lead_detect_t = min(self._lead_detect_t + DT_UPDATE, LEAD_DETECT_RAMP_T)
     else:
       if self._lead_detected:
         self._lead_detected = False
         self._lead_detect_t = 0.0
-      # lead 소실 후에도 필터 상태를 서서히 리셋 (갑작스러운 소실 완화)
-      self._lead_d_filt = ((1.0 - LEAD_SMOOTH_ALPHA) * self._lead_d_filt
-                           + LEAD_SMOOTH_ALPHA * 50.0)
-      self._lead_v_filt = ((1.0 - LEAD_SMOOTH_ALPHA) * self._lead_v_filt
-                           + LEAD_SMOOTH_ALPHA * (v_ego + 10.0))
 
     # 0.0(새 인식) → 1.0(안정 추종)
     lead_ramp = self._lead_detect_t / LEAD_DETECT_RAMP_T
@@ -543,31 +433,34 @@ class LongitudinalMpc:
     speed_scale = interp(v_ego * CV.MS_TO_KPH, [0.0, 100.0], [1.0, self.t_follow_speed_ratio])
     tr *= speed_scale
 
-    # Apply safety-increasing changes immediately. Reductions are held while
-    # decelerating and otherwise eased in to prevent a sudden closing surge.
+    # carrot-wip parity: prevent a gap reduction while decelerating, add a
+    # configurable deceleration boost, ramp increases progressively, and
+    # apply reductions immediately.
     gap_values = self.tfollow_gaps if self.tfollow_gaps is not None else CRUISE_GAP_V
-    v_ego_kph = v_ego * CV.MS_TO_KPH
     tr_max = max(gap_values) * self.driving_mode_tf * speed_scale
-    tr_target = float(np.clip(tr, max(0.6, min(gap_values)), tr_max))
-    if self._tf_applied <= 0.0 or tr_target >= self._tf_applied:
+    decel_extra = float(interp(carstate.aEgo, [-2.5, -1.0, -0.3, 0.0],
+                               [0.50, 0.25, 0.06, 0.0])) * self.t_follow_decel_boost
+    tr_target = float(np.clip(tr + decel_extra, max(0.6, min(gap_values)), min(2.0, tr_max + decel_extra)))
+    if self._tf_applied <= 0.0:
       tr = tr_target
-    elif v_ego_kph < self._tf_v_ego_kph:
-      tr = self._tf_applied
     else:
-      tr = max(tr_target, self._tf_applied - T_FOLLOW_DECREASE_RATE * DT_UPDATE)
+      if carstate.aEgo <= -0.2 and tr_target < self._tf_applied:
+        tr_target = self._tf_applied
+      if tr_target > self._tf_applied:
+        rise_rate = T_FOLLOW_DECEL_RISE_RATE if decel_extra > 0.02 else T_FOLLOW_RISE_RATE
+        tr = min(tr_target, self._tf_applied + rise_rate * DT_UPDATE)
+      else:
+        tr = tr_target
     self._tf_applied = float(tr)
-    self._tf_v_ego_kph = v_ego_kph
     # ────────────────────────────────────────────────────────────────────
 
     self.t_follow = tr
     self.desired_distance = float(tr * v_ego + STOP_DISTANCE)   # UI 표시용
-    tr_base = tr  # HF lead_ramp 보간 기준점 (학습된 base + 속도-가변 보정 포함)
     self.stop_dist = self.stop_dist_e2e if self.traffic_stop_active else \
                      (self.stop_dist_acc if self.mode == 'acc' else self.stop_dist_e2e)
 
-    # ── 새 lead의 MPC 입력 점진 반영 (HumanFollowing 설정과 무관) ────────────
-    # 기존 lead_ramp는 HumanFollowing에만 쓰여 OFF일 때 raw lead가 첫 프레임부터
-    # MPC에 들어갔다. 여유 있는 최초 인식은 가상의 비제약 lead에서 1.5초간 원본으로
+    # ── 새 lead의 MPC 입력 점진 반영 ──────────────────────────────────────
+    # 여유 있는 최초 인식은 가상의 비제약 lead에서 원본으로
     # 보간해 순간 제동을 줄이고, 안전거리 안쪽/TTC<5초인 접근은 즉시 원본을 사용한다.
     lead_urgent = False
     lead_input_ramp = 1.0
@@ -587,35 +480,8 @@ class LongitudinalMpc:
         lead_xv_0 = virtual_xv * (1.0 - lead_input_ramp) + lead_xv_0 * lead_input_ramp
     # ─────────────────────────────────────────────────────────────────────
 
-    # ── Human-Like Following: multiplier 초기화 (매 update마다 리셋) ────────
-    self._hf_j_multiplier            = 1.0
-    self._hf_a_change_multiplier     = 1.0
-    self._hf_danger_zone_multiplier  = 1.0
-    self._hf_danger_factor           = LEAD_DANGER_FACTOR
-
-    if self.human_following and radarstate.leadOne.status:
-      self.lead_tracking_prob = radarstate.leadOne.modelProb
-      # 필터링된 거리/속도 + ramp 값 전달
-      self._apply_human_following(
-        lead_distance = self._lead_d_filt,
-        v_ego         = v_ego,
-        v_lead        = self._lead_v_filt,
-        lead_ramp     = lead_ramp,
-        t_follow_base = tr_base,
-      )
-    # ─────────────────────────────────────────────────────────────────────
-
-    # ── t_follow rate limiter: 급격한 변화 방지 ──────────────────────────
-    # (Auto-Tuner 학습값 적용/GAP 전환/속도-가변 보정 점프도 이 limiter가 완만하게 처리)
-    t_follow_delta = self.t_follow - self._t_follow_smooth
-    max_delta      = T_FOLLOW_MAX_RATE * DT_UPDATE
-    self._t_follow_smooth += float(np.clip(t_follow_delta, -max_delta, max_delta))
-    self.t_follow = self._t_follow_smooth
-    # ─────────────────────────────────────────────────────────────────────
-
     # ── Lever A (commit d897f06): 고속 + 선행차 접근 → 추종거리 선제 확대 ──────
-    # rate limiter '뒤'에 둬서 즉시 반영(고속 접근은 늦으면 안 됨). _t_follow_smooth
-    # 에는 누적하지 않아 매 프레임 TTC로 새로 계산되므로, 접근이 해소되면 자동으로 0.
+    # TTC로 매 프레임 새로 계산되므로 접근이 해소되면 자동으로 0.
     # 삼중 게이트(고속·접근(vRel<0)·TTC<임계)라 정속 추종·저속에선 무동작 → 평상시 부드러움 유지.
     if _lead.status and v_ego * CV.MS_TO_KPH >= HIGH_SPEED_BRAKE_KPH \
        and _lead.dRel > 0.0 and _lead.vRel < 0.0:
@@ -644,9 +510,7 @@ class LongitudinalMpc:
     self.params[:,1] = self.max_a
 
     if self.mode == 'acc':
-      # ── Human-Like Following: danger_factor를 params에 반영 ────────────
-      self.params[:,5] = self._hf_danger_factor if self.human_following else LEAD_DANGER_FACTOR
-      # ─────────────────────────────────────────────────────────────────
+      self.params[:,5] = LEAD_DANGER_FACTOR
 
       v_lower = v_ego + (T_IDXS * self.cruise_min_a * 1.05)
       v_upper = v_ego + (T_IDXS * self.max_a * 1.05)

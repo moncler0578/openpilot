@@ -9,9 +9,6 @@
 #include <QJsonArray>
 #include <QScrollArea>
 #include <QScroller>
-#include <QFile>
-#include <QDir>
-
 #include "selfdrive/ui/qt/offroad/experimental_mode.h"
 #include "selfdrive/common/params.h"
 #include "selfdrive/ui/qt/util.h"
@@ -19,54 +16,29 @@
 #include "selfdrive/ui/qt/widgets/drive_stats.h"
 #include "selfdrive/ui/qt/widgets/prime.h"
 
-// ── CarrotPilot Auto-Tuner: nTune 파일 헬퍼 ──────────────────────────────
-// latcontrol_torque가 /data/ntune/lat_torque*.json 을, controlsd가 common.json 을
-// 라이브 리로드하므로 토크/조향 파라미터는 Params가 아닌 이 파일들에 기록
-static QString findNtuneTorqueFile() {
-  QDir dir("/data/ntune");
-  const QStringList files = dir.entryList({"lat_torque*.json"}, QDir::Files, QDir::Name);
-  if (!files.isEmpty()) return dir.filePath(files.first());
-  return "/data/ntune/lat_torque_v4.json";
+// ── CarrotPilot Auto-Tuner: Params 저장 헬퍼 ─────────────────────────────
+// Python carrot_learning.py의 배율과 동일하게 저장한다.
+static bool writeTorqueParamValue(Params &params, const QString &key, double value) {
+  if (key == "latAccelFactor") {
+    params.put("LateralTorqueAccelFactor", QString::number(value * 1000.0, 'f', 0).toStdString());
+  } else if (key == "friction") {
+    params.put("LateralTorqueFriction", QString::number(value * 1000.0, 'f', 0).toStdString());
+  } else {
+    return false;
+  }
+  params.putBool("LateralTorqueCustom", true);
+  return true;
 }
 
-static void writeNtuneTorqueValue(const QString &key, double value) {
-  QString path = findNtuneTorqueFile();
-  QJsonObject obj;
-  QFile f(path);
-  if (f.open(QIODevice::ReadOnly)) {
-    obj = QJsonDocument::fromJson(f.readAll()).object();
-    f.close();
+static bool writeCommonParamValue(Params &params, const QString &key, double value) {
+  if (key == "steerActuatorDelay") {
+    params.put("SteerActuatorDelay", QString::number(value * 100.0, 'f', 0).toStdString());
+  } else if (key == "steerRatio") {
+    params.put("CustomSteerRatio", QString::number(value * 100.0, 'f', 0).toStdString());
+  } else {
+    return false;
   }
-  obj[key] = value;
-  QDir().mkpath("/data/ntune");
-  if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-    f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
-    f.close();
-    // nTune.write_config와 동일하게 0666 권한 유지
-    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                     QFileDevice::ReadGroup | QFileDevice::WriteGroup |
-                     QFileDevice::ReadOther | QFileDevice::WriteOther);
-  }
-}
-
-// nTune common.json 쓰기 (steerActuatorDelay 등)
-static void writeNtuneCommonValue(const QString &key, double value) {
-  QString path = "/data/ntune/common.json";
-  QJsonObject obj;
-  QFile f(path);
-  if (f.open(QIODevice::ReadOnly)) {
-    obj = QJsonDocument::fromJson(f.readAll()).object();
-    f.close();
-  }
-  obj[key] = value;
-  QDir().mkpath("/data/ntune");
-  if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-    f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
-    f.close();
-    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                     QFileDevice::ReadGroup | QFileDevice::WriteGroup |
-                     QFileDevice::ReadOther | QFileDevice::WriteOther);
-  }
+  return true;
 }
 
 // ── CarrotPilot Auto-Tuner (commit 9dd5e2c port) ─────────────────────────
@@ -164,7 +136,7 @@ AutoTunerDialog::AutoTunerDialog(const QString &title_text, const QJsonObject &r
       QJsonObject info = group_items[key].toObject();
 
       // float 파라미터(OffsetTotal, latAccelFactor, steerActuatorDelay 등)와
-      // int 파라미터(CruiseMaxVals, TFollowGap)를 구분하여 표시
+      // int 파라미터(TFollowGap, Turn*)를 구분하여 표시
       bool is_float = info["is_float"].toBool(false);
       QString cur_str, rec_str;
       if (is_float) {
@@ -241,22 +213,19 @@ AutoTunerDialog::AutoTunerDialog(const QString &title_text, const QJsonObject &r
     <li><b>추천 및 적용</b>: 주차(P단) 시 팝업으로 추천값을 안내하며, <b>[선택 적용]</b>을 누르면 즉시 반영됩니다.</li>
     </ul><hr>
     <div style='font-size: 50px; font-weight: bold; margin-top: 20px; margin-bottom: 10px;'>⚙️ 그룹별 튜닝 항목</div>
-    <b>🚀 [가속] CruiseMaxVals0~3</b><br>
-    속도 대역별(0~36 / 36~90 / 90~144 / 144~ km/h) 크루즈 최대가속 한계.
-    가속이 답답해 페달을 밟는 시간이 누적되면 상향, 선행차 없는데 브레이크를 자주 밟으면 하향 추천.<br><br>
     <b>🛣️ [거리] TFollowGap1~4</b><br>
     크루즈 GAP 단계별 추종 거리 시간(x0.01초). 추종 중 가속 페달을 자주 밟으면(거리가 넓다고 판단) 감소,
     브레이크를 자주 밟으면 증가 추천. 최소 0.90초 보장.<br><br>
     <b>🔄 [조향] OffsetTotal / latAccelFactor / friction / steerActuatorDelay</b><br>
     - <b>OffsetTotal</b>(m): 직진 평균 편차가 누적되면 경로 좌우 보정.<br>
-    - <b>latAccelFactor</b>: 커브 조향 개입 방향에 따라 조향력 강도 조정 (nTune).<br>
-    - <b>friction</b>: 직선 미세 개입이 잦으면 마찰보상 상향 (nTune).<br>
-    - <b>steerActuatorDelay</b>: 커브 개입이 잦으면(반응 느림) 조향 지연을 낮춰 더 빠르게 (nTune common).<br>
+    - <b>latAccelFactor</b>: 커브 조향 개입 방향에 따라 조향력 강도 조정 (Params).<br>
+    - <b>friction</b>: 직선 미세 개입이 잦으면 마찰보상 상향 (Params).<br>
+    - <b>steerActuatorDelay</b>: 커브 개입이 잦으면(반응 느림) 조향 지연을 낮춰 더 빠르게 (Params).<br>
     <hr>
     <div style='font-size: 50px; font-weight: bold; margin-top: 20px; margin-bottom: 10px;'>💡 참고</div>
     - <b>CarrotLearningAutoApply=1</b> 설정 시 팝업 없이 P단 전환 때 자동 적용됩니다.<br>
     - <b>[학습 초기화]</b>는 추천을 적용하지 않고 누적 데이터만 삭제합니다.<br>
-    - 조향(nTune) 항목은 첫 적용 전 /data/ntune 백업을 권장합니다.<br>
+    - 조향 학습값은 Params에 저장되어 제어기에 실시간 반영됩니다.<br>
     - 적용 이력은 CarrotLearningHistory 파라미터(JSON, 최대 50개)에서 확인할 수 있습니다.
     </div>
     )";
@@ -383,17 +352,15 @@ void HomeWindow::updateState(const UIState &s) {
             p.put("CarrotLearningHistory",
                   QJsonDocument(history_array).toJson(QJsonDocument::Compact).toStdString());
 
-            // 2) 선택된 파라미터 적용 (ntune torque / ntune common / float / int 구분)
+            // 2) 선택된 파라미터 적용 (토크/공통 학습값은 Params 배율로 저장)
             for (const QString& group : selected.keys()) {
               QJsonObject group_items = selected[group].toObject();
               for (const QString& key : group_items.keys()) {
                 QJsonObject info = group_items[key].toObject();
                 if (info["ntune"].toString() == "torque") {
-                  // 토크 파라미터는 nTune lat_torque.json 에 기록 (latcontrol이 라이브 리로드)
-                  writeNtuneTorqueValue(key, info["recommended"].toDouble());
+                  writeTorqueParamValue(p, key, info["recommended"].toDouble());
                 } else if (info["ntune"].toString() == "common") {
-                  // steerActuatorDelay 등은 nTune common.json 에 기록
-                  writeNtuneCommonValue(key, info["recommended"].toDouble());
+                  writeCommonParamValue(p, key, info["recommended"].toDouble());
                 } else if (info["is_float"].toBool(false)) {
                   double rec = info["recommended"].toDouble();
                   p.put(key.toStdString(), QString::number(rec, 'f', 3).toStdString());

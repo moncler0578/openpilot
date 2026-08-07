@@ -89,9 +89,9 @@ class CarInterface(CarInterfaceBase):
     ret.longitudinalTuning.kf = 1.0
 
     long_delay = Params().get_int("LongActuatorDelay")
-    ret.longitudinalActuatorDelay = (long_delay * 0.01) if long_delay > 0 else 0.2
-    ret.longitudinalActuatorDelayLowerBound = max(0.1, ret.longitudinalActuatorDelay - 0.1)
-    ret.longitudinalActuatorDelayUpperBound = min(1.0, ret.longitudinalActuatorDelay + 0.1)
+    ret.longitudinalActuatorDelay = (long_delay * 0.01) if long_delay > 0 else 0.5
+    ret.longitudinalActuatorDelayLowerBound = 0.5
+    ret.longitudinalActuatorDelayUpperBound = 0.5
 
     ret.startingState = False
     ret.startAccel = 1.0

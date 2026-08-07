@@ -56,7 +56,6 @@ class CarController:
     self.scc12_cnt = -1
 
     self.resume_cnt = 0
-    self.last_lead_distance = 0
     self.resume_wait_timer = 0
 
     self.turning_signal_timer = 0
@@ -177,6 +176,10 @@ class CarController:
     if CS.mdps_bus or self.car_fingerprint in FEATURES["send_mdps12"]:  # send mdps12 to LKAS to prevent LKAS error
       can_sends.append(create_mdps12(self.packer, self.frame, CS.mdps12))
 
+    # The DH stock SCC keeps a standstill latch even with openpilot
+    # longitudinal control. controlsd only requests resume after the planner
+    # trajectory has detected a real departure, so clear that latch with a
+    # bounded RES pulse sequence in both stock-ACC and openpilot-long modes.
     self.update_auto_resume(CC, CS, clu11_speed, can_sends)
     self.update_scc(CC, CS, actuators, controls, hud_control, can_sends)
 
@@ -197,20 +200,18 @@ class CarController:
     return new_actuators, can_sends
 
   def update_auto_resume(self, CC, CS, clu11_speed, can_sends):
-    # fix auto resume - by neokii
+    # CC.cruiseControl.resume is already gated by enabled, standstill,
+    # soft-hold and the planner's departure trajectory. Do not gate it again
+    # on SCC11 ACC_ObjDist: some SCC firmwares update that value late (or not
+    # at all while latched), which prevents the RES command from ever firing.
     if CC.cruiseControl.resume and not CS.out.gasPressed:
-      if self.last_lead_distance == 0:
-        self.last_lead_distance = CS.lead_distance
-        self.resume_cnt = 0
-        self.resume_wait_timer = 0
-
-      elif self.scc_smoother.is_active(self.frame):
+      if self.scc_smoother.is_active(self.frame):
         pass
 
       elif self.resume_wait_timer > 0:
         self.resume_wait_timer -= 1
 
-      elif abs(CS.lead_distance - self.last_lead_distance) > 0.1:
+      else:
         can_sends.append(create_clu11(self.packer, CS.scc_bus, CS.clu11, Buttons.RES_ACCEL, clu11_speed))
         self.resume_cnt += 1
 
@@ -218,8 +219,9 @@ class CarController:
           self.resume_cnt = 0
           self.resume_wait_timer = int(randint(20, 25) * 2)
 
-    elif self.last_lead_distance != 0:
-      self.last_lead_distance = 0
+    else:
+      self.resume_cnt = 0
+      self.resume_wait_timer = 0
 
   def update_scc(self, CC, CS, actuators, controls, hud_control, can_sends):
 
@@ -242,12 +244,14 @@ class CarController:
     else:
       self.longitudinal_jerk.reset()
 
-    # Hyundai stock SCC rejects a leadless SET request below 30 km/h. When the
-    # driver explicitly presses SET/RES, briefly send the openpilot long SCC
-    # command path so ACCMode can become active without waiting for stock SCC.
+    # Hyundai stock SCC rejects a leadless SET request below 30 km/h. For a
+    # physical SET/RES press or a guarded aPilot-style auto-resume request,
+    # briefly send the openpilot long SCC command path so ACCMode can activate.
     # A leadless request is blocked below 2 km/h to prevent an unintended
-    # launch from standstill; gas-based automatic engagement remains unchanged.
-    request_pressed = CS.cruise_buttons in (Buttons.RES_ACCEL, Buttons.SET_DECEL)
+    # launch from standstill.
+    physical_request = CS.cruise_buttons in (Buttons.RES_ACCEL, Buttons.SET_DECEL)
+    auto_resume_request = self.scc_smoother.auto_resume_request
+    request_pressed = physical_request or auto_resume_request
     direct_long_available = (self.longcontrol and CC.enabled and CS.out.cruiseState.available and
                              (CS.scc_bus or not self.scc_live))
     low_speed_engage_request = self.low_speed_long_engage.update(
@@ -261,6 +265,8 @@ class CarController:
 
         set_speed = hud_control.setSpeed
         min_set_speed = self.scc_smoother.min_set_speed_kph * CV.KPH_TO_MS
+        if low_speed_engage_request and auto_resume_request:
+          set_speed = self.scc_smoother.auto_resume_set_speed_kph * CV.KPH_TO_MS
         if not (min_set_speed < set_speed < 255 * CV.KPH_TO_MS):
           set_speed = max(CS.out.vEgo, min_set_speed)
         set_speed *= CV.MS_TO_MPH if CS.is_set_speed_in_mph else CV.MS_TO_KPH
@@ -297,7 +303,7 @@ class CarController:
         self.scc12_cnt %= 0xF
 
         can_sends.append(create_scc12(self.packer, apply_accel, CC.enabled, self.scc12_cnt, self.scc_live, CS.scc12,
-                                      CS.out.gasPressed, CS.out.brakePressed, CS.out.cruiseState.standstill,
+                                      CS.out.gasPressed, CS.out.brakePressed, stopping and CS.out.vEgo < 2.,
                                       self.car_fingerprint, force_long=low_speed_engage_request))
 
         can_sends.append(create_scc11(self.packer, self.frame, CC.enabled, set_speed, hud_control.leadVisible, self.scc_live, CS.scc11,
@@ -309,6 +315,14 @@ class CarController:
         if CS.has_scc14:
           acc_standstill = stopping if CS.out.vEgo < 2. else False
 
+          # apilot-c2 comfort bands: keep the SCC brake-to-accel handoff in
+          # the normal control range instead of switching from 0 to 50.
+          if stopping:
+            cb_upper = cb_lower = 0.0
+          else:
+            cb_upper = clip(0.9 + apply_accel * 0.2, 0.0, 1.2)
+            cb_lower = clip(0.8 + apply_accel * 0.2, 0.0, 1.2)
+
           lead = self.scc_smoother.get_lead(controls.sm)
 
           if lead is not None:
@@ -319,6 +333,6 @@ class CarController:
 
           can_sends.append(
             create_scc14(self.packer, CC.enabled, CS.out.vEgo, acc_standstill, apply_accel, CS.out.gasPressed,
-                         obj_gap, CS.scc14, jerk_upper, jerk_lower))
+                         obj_gap, CS.scc14, jerk_upper, jerk_lower, cb_upper, cb_lower))
     else:
       self.scc12_cnt = -1

@@ -60,6 +60,7 @@ class DesireHelper:
     # 의 turnLeft/turnRight 확률) 방향을 래치해두고 부드럽게 페이드아웃한다.
     self.turn_direction_latched = 0
     self.turn_ll_prob = 1.0
+    self.turn_disable_count = 0
 
     # Lane Change Timer (AutoLaneChangeTimer) 관련
     self.lane_change_wait_timer = 0.0
@@ -83,6 +84,22 @@ class DesireHelper:
     lane_y = np.interp(x, current_lane.x, current_lane.y)
     desired_y = np.interp(x, desired_edge.x, desired_edge.y)
     return not (np.amax(np.abs(desired_y - lane_y)) > 3.0)
+
+  def _update_atc_turn_completion(self, model_data, carstate, turn_active):
+    """Stop re-requesting a turn after the vehicle passes the turn apex."""
+    completed = False
+    if turn_active and model_data is not None:
+      try:
+        orientation_rate = abs(model_data.orientationRate.z[5])
+        orientation_rate_future = abs(model_data.orientationRate.z[15])
+        completed = abs(carstate.steeringAngleDeg) > 80 and orientation_rate_future < orientation_rate
+      except (IndexError, AttributeError, TypeError):
+        completed = False
+
+    if completed:
+      self.turn_disable_count = int(10.0 / DT_MDL)
+    else:
+      self.turn_disable_count = max(0, self.turn_disable_count - 1)
 
   def update(self, carstate, lateral_active, lane_change_prob, model_data=None):
     t = time.monotonic()
@@ -245,6 +262,16 @@ class DesireHelper:
     turn_direction = self.carrot_atc.steering_request(atc_state, v_ego) if atc_steering else 0
     if opposite_torque or conflicting_blinker:
       turn_direction = 0
+
+    # Keep g_autoturn's distance/speed/driver safety gates for starting, then use
+    # c3-wip's steering-angle + predicted-yaw falloff to end the turn at its apex.
+    turn_active = (atc_state.get('kind') in ('turn', 'uturn') and
+                   (turn_direction != 0 or self.turn_direction_latched != 0))
+    self._update_atc_turn_completion(model_data, carstate, turn_active)
+    if self.turn_disable_count > 0:
+      turn_direction = 0
+      self.turn_direction_latched = 0
+      self.turn_ll_prob = 1.0
 
     # apilot 방식의 부드러운 회전종료 페이드: steering_request 가 0으로 끊긴 뒤에도
     # 모델이 아직 이 방향의 회전을 인지하고 있으면(desireState 확률 > 2%) 0.5초에

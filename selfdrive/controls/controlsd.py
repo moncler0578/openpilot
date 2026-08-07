@@ -17,7 +17,7 @@ from selfdrive.version import is_tested_branch
 from selfdrive.boardd.boardd import can_list_to_can_capnp
 from selfdrive.car.car_helpers import get_car, get_startup_event, get_one_can
 from selfdrive.controls.lib.lane_planner import CAMERA_OFFSET
-from selfdrive.controls.lib.drive_helpers import V_CRUISE_INITIAL, update_v_cruise, initialize_v_cruise
+from selfdrive.controls.lib.drive_helpers import V_CRUISE_INITIAL, V_CRUISE_MAX, update_v_cruise, initialize_v_cruise
 from selfdrive.controls.lib.drive_helpers import get_lag_adjusted_curvature
 from selfdrive.controls.lib.latcontrol import LatControl
 from selfdrive.controls.lib.longcontrol import LongControl
@@ -56,6 +56,7 @@ LaneChangeDirection = log.LateralPlan.LaneChangeDirection
 EventName = car.CarEvent.EventName
 ButtonEvent = car.CarState.ButtonEvent
 ButtonType = car.CarState.ButtonEvent.Type
+GearShifter = car.CarState.GearShifter
 SafetyModel = car.CarParams.SafetyModel
 
 IGNORED_SAFETY_MODES = (SafetyModel.silent, SafetyModel.noOutput)
@@ -212,6 +213,12 @@ class Controls:
     self.params = Params()
     self.soft_hold = SoftHoldController()
     self.soft_hold_enabled = self.params.get_bool("SoftHoldMode")
+    self.cruise_button_mode = 0
+    self.cruise_speed_unit = 10
+    self.cruise_speed_unit_basic = 1
+    self.cruise_button_long_delay = 70
+    self.cruise_speed_table = [30, 50, 70, 90, 110]
+    self.speed_from_pcm = 2
 
     # TODO: no longer necessary, aside from process replay
     self.sm['liveParameters'].valid = True
@@ -484,6 +491,13 @@ class Controls:
 
     if self.sm.frame % 100 == 0:
       self.cruise_speed_min = read_cruise_speed_min(self.params)
+      self.cruise_button_mode = int(clip(self.params.get_int("CruiseButtonMode"), 0, 3))
+      self.cruise_speed_unit = int(clip(self.params.get_int("CruiseSpeedUnit"), 1, 20))
+      self.cruise_speed_unit_basic = int(clip(self.params.get_int("CruiseSpeedUnitBasic"), 1, 10))
+      self.cruise_button_long_delay = int(clip(self.params.get_int("CruiseButtonLongDelay"), 30, 150))
+      table = [self.params.get_int(f"CruiseSpeed{i}") for i in range(1, 6)]
+      self.cruise_speed_table = sorted(clip(v, self.cruise_speed_min, V_CRUISE_MAX) for v in table)
+      self.speed_from_pcm = int(clip(self.params.get_int("SpeedFromPCM"), 0, 3))
 
     self.CP.pcmCruise = self.CI.CP.pcmCruise
 
@@ -610,7 +624,7 @@ class Controls:
     soft_hold_available = (self.soft_hold_enabled and self.CP.openpilotLongitudinalControl and
                            self.active and (CS.cruiseState.enabledAcc or self.soft_hold.active))
     soft_hold_active = self.soft_hold.update(soft_hold_available, CS.brakePressed, CS.gasPressed,
-                                             CS.vEgo, resume_pressed, DT_CTRL)
+                                             CS.vEgo, resume_pressed, CS.gearShifter == GearShifter.drive, DT_CTRL)
 
     CC = car.CarControl.new_message()
     CC.enabled = self.enabled
@@ -641,7 +655,7 @@ class Controls:
       t_since_plan = (self.sm.frame - self.sm.rcv_frame['longitudinalPlan']) * DT_CTRL
       actuators.accel = self.LoC.update(CC.longActive and (CS.cruiseState.enabledAcc or soft_hold_active),
                                         CS, long_plan, pid_accel_limits, t_since_plan,
-                                        self.sm['radarState'], soft_hold_active)
+                                        self.sm['radarState'], soft_hold_active, self.soft_hold.released)
 
       # Steering PID loop and lateral MPC
       self.desired_curvature, self.desired_curvature_rate = get_lag_adjusted_curvature(self.CP, CS.vEgo,

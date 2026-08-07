@@ -594,12 +594,12 @@ void AutoTunerGraphWidget::mousePressEvent(QMouseEvent *event) {
 
 // Show-All(전체) 뷰에서 제외할 대규모 스케일 파라미터 판정 (commit e06a7dd 21f7994a)
 // 조향계열(OffsetTotal/latAccelFactor/friction/steerActuatorDelay)은 값이 작아 같이
-// 그리면 바닥에 깔리므로, 대규모(CruiseMaxVals/TFollowGap/Turn*)는 개별 선택 시에만 표시.
+// 그리면 바닥에 깔리므로, 대규모(TFollowGap/Turn*)는 개별 선택 시에만 표시.
 // Turn*(TurnEnteringDecel/TurnTurningAcc/TurnLeavingAcc)도 x100 정수 저장이라
-// CruiseMaxVals/TFollowGap과 동일한 스케일(-30~200) — 빠뜨리면 소규모 nTune
+// TFollowGap과 동일한 스케일(-30~200) — 빠뜨리면 소규모 nTune
 // 파라미터들이 Show-All에서 바닥에 깔린다.
 static bool isLargeScaleParam(const QString &param) {
-  return param.startsWith("CruiseMaxVals") || param.startsWith("TFollowGap") ||
+  return param.startsWith("TFollowGap") ||
          param.startsWith("TurnEnteringDecel") || param.startsWith("TurnTurningAcc") ||
          param == "TurnLeavingAcc";
 }
@@ -2032,7 +2032,9 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
     {"Toggles", toggles},
     {"Software", new SoftwarePanel(this)},
     {"Community", new CommunityPanel(this)},
+    {"UI 설정", new UISettingsPanel(this)},
     {"조향", new VIPPanel(this)},
+    {"Cruise", new CruisePanel(this)},
     {"롱컨", new LongitudinalPanel(this)},
   };
 
@@ -2042,7 +2044,7 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
   QObject::connect(map_panel, &MapPanel::closeSettings, this, &SettingsWindow::closeSettings);
 #endif
 
-  const int padding = panels.size() > 3 ? 25 : 35;
+  const int padding = panels.size() > 7 ? 10 : (panels.size() > 3 ? 25 : 35);
 
   nav_btns = new QButtonGroup(this);
   for (auto &[name, panel] : panels) {
@@ -2196,11 +2198,6 @@ CommunityPanel::CommunityPanel(QWidget* parent) : QWidget(parent) {
                                             "Use cluster speed instead of wheel speed.",
                                             "../assets/offroad/icon_road.png",
                                             this));
-  toggles.append(new ParamControl("AutoAscc",
-                                            "Ascc auto set",
-                                            "Ascc auto set 적용",
-                                            "../assets/offroad/icon_road.png",
-                                            this));
   toggles.append(new ParamControl("LongControlEnabled",
                                             "Enable HKG Long Control",
                                             "warnings: it is beta, be careful!! Openpilot will control the speed of your car",
@@ -2277,20 +2274,6 @@ CommunityPanel::CommunityPanel(QWidget* parent) : QWidget(parent) {
                                             "Disable Openpilot FCW",
                                             "",
                                             "../assets/offroad/icon_shell.png",
-                                            this));
-  toggleLayout->addWidget(horizontal_line());
-  toggleLayout->addWidget(new ParamControl("ShowDebugUI",
-                                            "Show Debug UI",
-                                            "",
-                                            "../assets/offroad/icon_shell.png",
-                                            this));
-  toggleLayout->addWidget(horizontal_line());
-  toggleLayout->addWidget(new ParamControl("HumanFollowing",
-                                            "Human-Like Following",
-                                            "선행차 속도에 따라 자연스러운 가감속을 적용합니다.\n"
-                                            "빠른 선행차: 부드럽게 따라붙기 / 느린 선행차: 자연스럽게 감속.\n"
-                                            "(Long Control 활성화 시 동작)",
-                                            "../assets/offroad/icon_road.png",
                                             this));
 }
 
@@ -2386,6 +2369,106 @@ LateralControl::LateralControl(QWidget* parent): QWidget(parent) {
 
 /////////////////////////////////////////////////////////////////////////
 
+CruisePanel::CruisePanel(QWidget* parent) : QWidget(parent) {
+  QVBoxLayout* layout = new QVBoxLayout(this);
+  layout->setContentsMargins(50, 20, 50, 20);
+  layout->setSpacing(0);
+
+  ListWidget* list = new ListWidget(this);
+  list->setSpacing(0);
+
+  list->addItem(new ParamValueControlF(
+      "CruiseSpeedMin", "최저 설정속도 (km/h)",
+      "롱컨을 처음 켤 때 적용되는 최저 설정속도입니다 (km/h). 주행 중 변경하면 약 1초 안에 반영됩니다.",
+      "../assets/offroad/icon_road.png", 5, 30, 1, 0, 30, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoCruiseControl", "C3 자동 크루즈",
+      "0: 자동 활성화 끔 / 1 이상: 안전조건을 만족한 가속페달·브레이크 해제 자동재개 사용",
+      "../assets/offroad/icon_road.png", 0, 3, 1, 0, 1, this));
+
+  list->addItem(new ParamValueControlF(
+      "SpeedFromPCM", "크루즈 설정속도 기준",
+      "1: 순정 SCC 설정속도 사용 / 2: 오픈파일럿 설정속도와 C3 버튼 모드 사용",
+      "../assets/offroad/icon_road.png", 1, 2, 1, 0, 2, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoGasTokSpeed", "가속페달 자동재개 속도 (km/h)",
+      "이 속도 이상에서 가속페달 자동재개를 허용합니다.",
+      "../assets/offroad/icon_road.png", 5, 60, 1, 0, 30, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoGasCancelSpeed", "가속페달 해제 취소속도 (km/h)",
+      "짧은 가속페달 조작 후 이 속도보다 낮으면 자동재개하지 않습니다.",
+      "../assets/offroad/icon_road.png", 0, 60, 1, 0, 30, this));
+
+  list->addItem(new ParamValueControlF(
+      "CruiseButtonMode", "크루즈 버튼 모드",
+      "0: 일반 1km/h 증감 / 1: RES 사용자단위, SET 사용자단위 / 2: SET 현재속도 동기화 / 3: RES 지정속도 순환",
+      "../assets/offroad/icon_road.png", 0, 3, 1, 0, 0, this));
+
+  list->addItem(new ParamValueControlF(
+      "CruiseSpeedUnit", "크루즈 사용자 증감단위 (km/h)",
+      "크루즈 버튼 모드 1~3에서 사용하는 속도 단위입니다.",
+      "../assets/offroad/icon_road.png", 1, 20, 1, 0, 10, this));
+
+  list->addItem(new ParamValueControlF(
+      "CruiseButtonLongDelay", "크루즈 버튼 길게누름 시간",
+      "RES/SET 길게누름 판정시간입니다. 제어주기 0.01초 단위이며 기본 70은 약 0.7초입니다.",
+      "../assets/offroad/icon_road.png", 30, 150, 5, 0, 70, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoSpeedUptoRoadSpeedLimit", "앞차 자동증속 도로속도 비율 (%)",
+      "0은 끔입니다. 앞차가 더 빠르고 60m 이내일 때 일반 도로 제한속도의 지정 비율까지만 설정속도를 올립니다.",
+      "../assets/offroad/icon_road.png", 0, 120, 5, 0, 0, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoRoadSpeedAdjust", "도로 제한속도 변경 반영률 (%)",
+      "0: 설정속도 유지 / 1~100: 제한속도가 내려갈 때 혼합 적용 / -100: 새 제한속도로 즉시 변경",
+      "../assets/offroad/icon_road.png", -100, 100, 10, 0, 0, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoRoadSpeedLimitOffset", "도로 제한속도 오프셋 (km/h)",
+      "도로 제한속도 자동변경 모드에서 더하거나 뺄 값입니다.",
+      "../assets/offroad/icon_road.png", -30, 30, 1, 0, 0, this));
+
+  list->addItem(new ParamValueControlF(
+      "TFollowDecelBoost", "감속 중 차간시간 추가 (%)",
+      "C3 방식으로 감속 중 차간시간 감소를 막고 감속량에 따라 여유 간격을 추가합니다.",
+      "../assets/offroad/icon_road.png", 0, 100, 5, 0, 50, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoResumeFromGas", "가속페달 오토리줌 모드",
+      "0: 끔 / 1: 조건 충족 중 재개 / 2: 조건 충족 및 0.4초 미만 짧은 가속 후 재개",
+      "../assets/offroad/icon_road.png", 0, 2, 1, 0, 1, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoResumeFromGasSpeedMode", "오토리줌 설정속도 모드",
+      "0: 현재속도 / 1: 이전 설정속도 / 2: 앞차가 있으면 이전 설정속도",
+      "../assets/offroad/icon_road.png", 0, 2, 1, 0, 0, this));
+
+  list->addItem(new ParamControl(
+      "AutoResumeFromBrakeRelease", "브레이크 해제 오토리줌",
+      "브레이크를 놓을 때 조향·신호·앞차 거리 또는 속도 안전조건을 만족하면 롱컨을 재개합니다.",
+      "../assets/offroad/icon_road.png", this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoResumeFromBrakeCarSpeed", "브레이크 해제 재개속도 (km/h)",
+      "앞차가 없을 때 이 속도 이상에서만 브레이크 해제 오토리줌을 허용합니다.",
+      "../assets/offroad/icon_road.png", 5, 60, 1, 0, 30, this));
+
+  list->addItem(new ParamValueControlF(
+      "AutoResumeFromBrakeReleaseDist", "브레이크 해제 앞차거리 (m)",
+      "앞차가 있을 때 이 거리 이상에서만 브레이크 해제 오토리줌을 허용합니다.",
+      "../assets/offroad/icon_road.png", 2, 50, 1, 0, 10, this));
+
+  ScrollView *scroller = new ScrollView(list, this);
+  scroller->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  layout->addWidget(scroller);
+}
+
+/////////////////////////////////////////////////////////////////////////
+
 LongitudinalPanel::LongitudinalPanel(QWidget* parent) : QWidget(parent) {
   QVBoxLayout* layout = new QVBoxLayout(this);
   layout->setContentsMargins(50, 20, 50, 20);
@@ -2398,11 +2481,6 @@ LongitudinalPanel::LongitudinalPanel(QWidget* parent) : QWidget(parent) {
       "E2EAccMode", "Longitudinal Control Mode",
       "ACC: 항상 ACC / AUTO: 평소 ACC, 신호 정지 시 E2E / E2E: 항상 E2E",
       "../assets/img_experimental_white.svg", 0, 2, 1, 0, 0, this));
-
-  list->addItem(new ParamValueControlF(
-      "CruiseSpeedMin", "최저 설정속도 (km/h)",
-      "롱컨을 처음 켤 때 적용되는 최저 설정속도입니다 (km/h). 주행 중 변경하면 약 1초 안에 반영됩니다.",
-      "../assets/offroad/icon_road.png", 5, 30, 1, 0, 30, this));
 
   list->addItem(new ParamValueControlF(
       "JerkStartLimit", "출발 저크 제한 (×0.1 m/s³)",
@@ -2437,7 +2515,7 @@ LongitudinalPanel::LongitudinalPanel(QWidget* parent) : QWidget(parent) {
   for (const auto& [key, title, default_value] : accel_controls) {
     list->addItem(new ParamValueControlF(
         key, title, "해당 속도 구간의 최대 크루즈 가속도입니다 (×0.01m/s²).",
-        "../assets/offroad/icon_openpilot.png", 10, 250, 5, 0, default_value, this));
+        "../assets/offroad/icon_openpilot.png", 10, 250, 1, 0, default_value, this));
   }
 
   list->addItem(horizontal_line());
@@ -2451,7 +2529,7 @@ LongitudinalPanel::LongitudinalPanel(QWidget* parent) : QWidget(parent) {
   for (const auto& [key, title, default_value] : gap_controls) {
     list->addItem(new ParamValueControlF(
         key, title, "해당 크루즈 GAP의 추종시간입니다 (×0.01초).",
-        "../assets/offroad/icon_openpilot.png", 70, 300, 5, 0, default_value, this));
+        "../assets/offroad/icon_openpilot.png", 70, 300, 1, 0, default_value, this));
   }
 
   list->addItem(new ParamValueControlF(
@@ -2493,6 +2571,58 @@ LongitudinalPanel::LongitudinalPanel(QWidget* parent) : QWidget(parent) {
       "E2EStopDistance", "E2E Stop Distance",
       "모델이 예측한 신호 또는 정지선 앞에서 유지할 거리입니다 (m).",
       "../assets/offroad/icon_road.png", 1, 15, 1, 0, 6, this));
+
+  ScrollView *scroller = new ScrollView(list, this);
+  scroller->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  layout->addWidget(scroller);
+}
+
+/////////////////////////////////////////////////////////////////////////
+
+UISettingsPanel::UISettingsPanel(QWidget* parent) : QWidget(parent) {
+  QVBoxLayout* layout = new QVBoxLayout(this);
+  layout->setContentsMargins(50, 20, 50, 20);
+  layout->setSpacing(0);
+
+  ListWidget* list = new ListWidget(this);
+  list->setSpacing(0);
+
+  list->addItem(new ParamControl(
+      "ShowCarrotHud", "좌측 HUD 박스 표시",
+      "속도·크루즈·GAP·기어·주행모드·제한속도 HUD를 표시합니다.",
+      "../assets/offroad/icon_road.png", this));
+  list->addItem(new ParamControl(
+      "ShowGearAnimation", "기어 팝업 애니메이션",
+      "변속단이 바뀔 때 중앙 팝업 애니메이션을 표시합니다.",
+      "../assets/offroad/icon_road.png", this));
+  list->addItem(new ParamValueControlF(
+      "ShowDateTime", "날짜·시간 표시",
+      "0: 끔 / 1: 시간+날짜 / 2: 시간 / 3: 날짜",
+      "../assets/offroad/icon_road.png", 0, 3, 1, 0, 1, this));
+  list->addItem(new ParamControl(
+      "ShowDebugUI", "디버그 UI 표시",
+      "주행 화면의 개발자 디버그 정보를 표시합니다.",
+      "../assets/offroad/icon_shell.png", this));
+  list->addItem(new ParamControl(
+      "ShowBlindSpotAlways", "BSD 영역 상시 표시",
+      "BSD 감지가 없을 때도 좌우 사각지대 영역을 흐리게 표시합니다.",
+      "../assets/offroad/icon_road.png", this));
+
+  list->addItem(horizontal_line());
+  auto *status_color = new ParamControl(
+      "ShowPathStatusColor", "주행 경로 상태색",
+      "활성=녹색, 정속=노란색, 가속=주황색, 감속=빨간색, 비활성=검은색으로 표시합니다.",
+      "../assets/offroad/icon_road.png", this);
+  status_color->showDescription();
+  list->addItem(status_color);
+  list->addItem(new ParamControl(
+      "ShowPathBrakeBorder", "브레이크 경로 테두리",
+      "브레이크등이 켜지면 주행 경로 외곽을 빨간색으로 표시합니다.",
+      "../assets/offroad/icon_road.png", this));
+  list->addItem(new ParamValueControlF(
+      "ShowPathWidth", "주행 경로 폭 (cm)",
+      "차량 중심에서 경로 한쪽 끝까지의 폭입니다. 90은 좌우 각각 0.90m입니다.",
+      "../assets/offroad/icon_road.png", 30, 150, 10, 0, 90, this));
 
   ScrollView *scroller = new ScrollView(list, this);
   scroller->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -2717,7 +2847,7 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
   auto *learnToggle = new ParamControl("CarrotLearningActive",
       "Auto-Tuner: 주행 기반 학습",
       "운전자 개입(가속/브레이크/조향)을 학습하여 주차(P단) 시 파라미터 조정을 추천합니다.\n"
-      "학습 대상: CruiseMaxVals0~3(가속) / TFollowGap1~4(추종거리) / OffsetTotal(직진 편차) /\n"
+      "학습 대상: TFollowGap1~4(추종거리) / OffsetTotal(직진 편차) /\n"
       "TurnEnteringDecel·TurnTurningAcc·TurnLeavingAcc(비전 커브 감속)\n"
       "1회 적용 시 변동폭 ±15 제한, 추종거리 최소 0.90초 보장.",
       "../assets/offroad/icon_shell.png",
@@ -2753,7 +2883,7 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
   list->addItem(viewHistoryBtn);
 
   // ── Factory Reset 버튼 (commit e06a7dd) ──
-  // Params 기반 학습 대상(CruiseMaxVals/TFollowGap/OffsetTotal/Turn*)만 공장 기본값 복원 +
+  // Params 기반 학습 대상(TFollowGap/OffsetTotal/Turn*)만 공장 기본값 복원 +
   // 학습 데이터/이력 삭제. nTune 조향값(latAccelFactor/friction/steerActuatorDelay)은
   // 차량별 기준값이라 의도적으로 제외 (사용자 nTune 세팅 보호).
   QPushButton* factoryResetBtn = new QPushButton("Auto-Tuner: Factory Reset");

@@ -1,7 +1,9 @@
 #include "selfdrive/ui/ui.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdlib>
 
 #include <QtConcurrent>
 
@@ -147,13 +149,27 @@ static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
   }
 
   // update path
+  // ShowPathWidth is stored as centimeters (90 = 0.90 m half-width).
+  // Refresh at 1 Hz so the UI setting applies while driving without reading
+  // persistent storage on every model frame.
+  static Params path_params;
+  static int path_param_frame = 0;
+  static float path_width = 0.9f;
+  if (++path_param_frame >= UI_FREQ) {
+    path_param_frame = 0;
+    const std::string configured_width_value = path_params.get("ShowPathWidth");
+    const int configured_width = configured_width_value.empty()
+        ? 90 : std::atoi(configured_width_value.c_str());
+    path_width = std::clamp(configured_width > 0 ? configured_width / 100.0f : 0.9f,
+                            0.3f, 1.5f);
+  }
   auto lead_one = (*s->sm)["radarState"].getRadarState().getLeadOne();
   if (lead_one.getStatus()) {
     const float lead_d = lead_one.getDRel() * 2.;
     max_distance = std::clamp((float)(lead_d - fmin(lead_d * 0.35, 10.)), 0.0f, max_distance);
   }
   max_idx = get_path_length_idx(model_position, max_distance);
-  update_line_data(s, model_position, 0.9, 1.22, 1.22, &scene.track_vertices, max_idx, false);
+  update_line_data(s, model_position, path_width, 1.22, 1.22, &scene.track_vertices, max_idx, false);
 }
 
 static void update_sockets(UIState *s) {

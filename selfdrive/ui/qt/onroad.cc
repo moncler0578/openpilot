@@ -1,6 +1,7 @@
 #include "selfdrive/ui/qt/onroad.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <initializer_list>
@@ -275,7 +276,6 @@ void NvgWindow::initializeGL() {
   ic_nda = QPixmap("../assets/images/img_nda.png");
   ic_hda = QPixmap("../assets/images/img_hda.png");
   ic_tire_pressure = QPixmap("../assets/images/img_tire_pressure.png");
-
   ic_speed_bg = QPixmap("../assets/images/speed_bg.png");
 }
 
@@ -385,20 +385,40 @@ void NvgWindow::drawLaneLines(QPainter &painter, const UIState *s) {
     }
   }
   QLinearGradient bg(path_left, 0, path_right, 0);
-  const bool e2e_mode = sm["longitudinalPlan"].getLongitudinalPlan().getMpcMode() == 1;
-  if (e2e_mode) {
-    // Yellow e2e palette.
-    bg.setColorAt(0.0, QColor::fromHslF(48 / 360., 0.95, 0.55, 0.65));
-    bg.setColorAt(0.5, QColor::fromHslF(55 / 360., 1.0, 0.68, 0.12));
-    bg.setColorAt(1.0, QColor::fromHslF(48 / 360., 0.95, 0.55, 0.65));
+  if (show_path_status_color) {
+    QColor path_color(0, 205, 80, 180);  // engaged, no lead
+    if (!s->engaged()) {
+      path_color = QColor(35, 35, 35, 150);
+    } else {
+      const auto lead = sm["radarState"].getRadarState().getLeadOne();
+      const auto accels = sm["longitudinalPlan"].getLongitudinalPlan().getAccels();
+      const float accel = accels.size() > 0 ? accels[0] : 0.0f;
+      if (lead.getStatus()) {
+        if (std::abs(accel) < 0.5f) path_color = QColor(235, 215, 35, 180);       // steady
+        else if (accel >= 0.5f)     path_color = QColor(255, 153, 0, 190);        // accelerating
+        else                        path_color = QColor(220, 35, 45, 190);        // decelerating
+      }
+    }
+    QColor center_color = path_color;
+    center_color.setAlpha(30);
+    bg.setColorAt(0.0, path_color);
+    bg.setColorAt(0.5, center_color);
+    bg.setColorAt(1.0, path_color);
   } else {
-    // Former lane-mode palette.
+    // Single fallback palette; ACC/E2E no longer changes the path color.
     bg.setColorAt(0.0, QColor::fromHslF(197 / 360., 1.0, 0.55, 0.7));
     bg.setColorAt(0.5, QColor::fromHslF(200 / 360., 1.0, 0.70, 0.12));
     bg.setColorAt(1.0, QColor::fromHslF(197 / 360., 1.0, 0.55, 0.7));
   }
   painter.setBrush(bg);
   painter.drawPolygon(scene.track_vertices.v, scene.track_vertices.cnt);
+
+  if (show_path_brake_border &&
+      sm["carState"].getCarState().getBrakeLights()) {
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(QColor(235, 35, 45, 245), 3));
+    painter.drawPolygon(scene.track_vertices.v, scene.track_vertices.cnt);
+  }
 
   painter.restore();
 }
@@ -515,8 +535,6 @@ void NvgWindow::drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model) {
     eon_cluster_hud_last_read = now;
     eon_cluster_hud_connected = Params().getBool("EonClusterHudConnected");
   }
-  // Keep JSON navigation state fresh for speed-limit and ATC consumers, but
-  // avoid image I/O and all on-device TMap drawing while the USB HUD owns it.
   updateCarrotNavi(!eon_cluster_hud_connected);
 
   drawCarrotLead(p);
@@ -813,7 +831,7 @@ void NvgWindow::drawCarrotBottom(QPainter &p) {
     }
   }
   if (!lat_debug.isEmpty()) {
-    int right_limit = width() - 20;
+    int right_limit = width() - 240;
     int left_limit = 240;
     int avail = right_limit - left_limit;
 
@@ -832,8 +850,8 @@ void NvgWindow::drawCarrotBottom(QPainter &p) {
   p.restore();
 }
 
-void NvgWindow::ctTextAnimStart(int x, int y, const QString &text, int size, const QColor &color) {
-  if (!show_gear_animation) return;
+void NvgWindow::ctTextAnimStart(int x, int y, const QString &text, int size, const QColor &color, bool enabled) {
+  if (!enabled) return;
   anim_x = x;
   anim_y = y;
   anim_text = text;
@@ -882,8 +900,8 @@ void NvgWindow::drawCarrotLead(QPainter &p) {
     float ly = scene.lead_left[1].y();
     float w2 = std::clamp(xr - xl, 80.0f, LEAD_BOX_MAX_W * 0.8f);
     QRect box2((int)(xl - 10), (int)(ly - w2 * 0.8f), (int)(w2 + 20), (int)(w2 * 0.8f));
-    p.setPen(QPen(QColor(218, 111, 37, 255), 3));      // 황토색 (기존 4에서 살짝 얇게)
-    p.setBrush(QColor(0, 0, 0, 45));
+    p.setPen(QPen(QColor(218, 111, 37, 255), 2));
+    p.setBrush(QColor(0, 0, 0, 10));
     p.drawRoundedRect(box2, 15, 15);
   }
 
@@ -910,8 +928,8 @@ void NvgWindow::drawCarrotLead(QPainter &p) {
     // 레이더가 잡은 리드면 주황, 비전만이면 파랑
     QColor stroke = scene.lead_radar[0] ? QColor(255, 175, 3, 255) : QColor(0, 0, 255, 255);
     QRect box((int)(cx - w1 / 2 - 10), (int)(ly - w1 * 0.8f), (int)(w1 + 20), (int)(w1 * 0.8f));
-    p.setPen(QPen(stroke, 4));  // 기존 5에서 살짝 얇게
-    p.setBrush(QColor(0, 0, 0, 55));
+    p.setPen(QPen(stroke, 3));
+    p.setBrush(QColor(0, 0, 0, 10));
     p.drawRoundedRect(box, 15, 15);
 
     // ---- 거리 두 개 : 좌 레이더 / 우 비전 ----
@@ -961,8 +979,11 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
     Params params;
     int m = std::atoi(params.get("MyDrivingMode").c_str());
     my_driving_mode = (m >= 1 && m <= 4) ? m : 3;
-    show_device_state = std::atoi(params.get("ShowDeviceState").c_str());
     carrot_atc_mode = std::atoi(params.get("CarrotAutoTurnControl").c_str());
+    carrot_atc_speed = std::atoi(params.get("CarrotAutoTurnSpeed").c_str());
+    carrot_atc_end_time = std::atoi(params.get("CarrotAutoTurnEndTime").c_str());
+    if (carrot_atc_speed < 30 || carrot_atc_speed > 60) carrot_atc_speed = 30;
+    if (carrot_atc_end_time < 2 || carrot_atc_end_time > 12) carrot_atc_end_time = 6;
     std::string sdt = params.get("ShowDateTime");
     show_datetime = sdt.empty() ? 1 : std::atoi(sdt.c_str());   // 0:끔 1:시간+날짜 2:시간만 3:날짜만
     std::string sga = params.get("ShowGearAnimation");
@@ -970,6 +991,10 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
     show_bsd_always = std::atoi(params.get("ShowBlindSpotAlways").c_str());
     std::string sch = params.get("ShowCarrotHud");
     show_carrot_hud = sch.empty() ? 1 : std::atoi(sch.c_str());
+    std::string spsc = params.get("ShowPathStatusColor");
+    show_path_status_color = spsc.empty() ? 1 : std::atoi(spsc.c_str());
+    std::string spbb = params.get("ShowPathBrakeBorder");
+    show_path_brake_border = spbb.empty() ? 1 : std::atoi(spbb.c_str());
   }
 
   if (!show_carrot_hud) { p.restore(); return; }
@@ -988,12 +1013,8 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
   const bool cam_detected = (cam_limit > 0 && cam_dist > 0) || (sec_limit > 0 && sec_dist > 0);
 
   // ---- 패널 배경 ----
-  QColor bg_color = (cam_detected && blink_timer > 8) ? CT_RED_A(180) : CT_BLACK_A(90);
-  if (show_device_state > 0) {
-    ctRect(p, QRect(bx - 120, by - 270, 475, 495), bg_color, 30, 2, CT_WHITE);
-  } else {
-    ctRect(p, QRect(bx - 120, by - 130, 475, 355), bg_color, 30, 2, CT_WHITE);
-  }
+  QColor bg_color = CT_BLACK_A(90);
+  ctRect(p, QRect(bx - 120, by - 270, 475, 495), bg_color, 30, 2, CT_WHITE);
 
   // ---- 현재 속도 ----
   float v_ego_disp = std::max(0.0f, (float)car_state.getVEgoCluster()) * ms_to_disp;
@@ -1011,20 +1032,13 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
                      : QString("--");
   ctText(p, bx + 170, by + 20, cruise_str, 60, CT_GREEN, true, true);
 
-  // ---- 적용 속도(감속 목표) + 감속 사유 : carrot 의 apply_speed / apply_source ----
+  // ---- 실제 적용 속도 : aPilot처럼 설정속도와 다를 때만 작은 녹색 숫자로 표시 ----
   //      sccSmoother 계열(cam/sec/road/eco) 과 VisionTurnController(vturn) 중
   //      더 낮은 목표속도를 표시한다.
   float show_speed = 0.0f;      // kph
-  QString src = "";
-
   float apply_max = scc_smoother.getApplyMaxSpeed();
   if (is_cruise_set && apply_max > 0 && std::abs(apply_max - cruise_max) > 0.5f) {
     show_speed = apply_max;
-    if (cam_limit > 0 && cam_dist > 0)       src = "cam";
-    else if (sec_limit > 0 && sec_dist > 0)  src = "sec";
-    else if (road_limit.getActive() > 0 && road_limit.getRoadLimitSpeed() > 0 &&
-             apply_max <= road_limit.getRoadLimitSpeed() + 1)  src = "road";
-    else                                     src = "eco";
   }
 
   // VisionTurnController 커브 감속
@@ -1037,15 +1051,13 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
       float v_turn = long_plan.getVisionTurnSpeed() * 3.6f;   // m/s -> kph
       if (v_turn > 0 && (show_speed <= 0.0f || v_turn < show_speed)) {
         show_speed = v_turn;
-        src = "vturn";
       }
     }
   }
 
-  if (show_speed > 0.0f && !src.isEmpty()) {
+  if (show_speed > 0.0f) {
     ctText(p, bx + 250, by - 50,  QString::number((int)(show_speed * kph_to_disp + 0.5f)),
-           50, CT_OCHRE, true, true);
-    ctText(p, bx + 250, by - 100, src, 30, CT_OCHRE, true, true);
+           50, CT_GREEN, true, true);
   }
 
   // ---- 주행모드 (NORM / ECO / SAFE / FAST) ----
@@ -1103,7 +1115,8 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
 
     // 기어가 바뀌면 팝업 애니메이션 시작
     if (!gear_str_last.isEmpty() && gear_str_last != gear_str) {
-      ctTextAnimStart(gear_box.center().x(), gear_box.bottom(), gear_str, 70, CT_WHITE);
+      ctTextAnimStart(gear_box.center().x(), gear_box.bottom(), gear_str, 70, CT_WHITE,
+                      show_gear_animation != 0);
     }
     gear_str_last = gear_str;
   }
@@ -1167,8 +1180,8 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
     ctTextIn(p, limit_box, QString::number(disp_speed), 40, limit_text_color);
   }
 
-  // ---- 디바이스 상태 (ShowDeviceState = 1 일 때만) ----
-  if (show_device_state > 0) {
+  // ---- CPU 온도 / 타이어 공기압 / CPU 사용률 (항상 표시) ----
+  {
     const auto deviceState = sm["deviceState"].getDeviceState();
     float cpuTemp = 0.f;
     const auto cpuTempC = deviceState.getCpuTempC();
@@ -1196,72 +1209,35 @@ void NvgWindow::drawCarrotHud(QPainter &p) {
 
     dx += 150;
     ds_box.moveLeft(dx - 65);
-    const qint64 wall_now = QDateTime::currentMSecsSinceEpoch();
-    const qint64 guidance_age = wall_now - static_cast<qint64>(carrot_navi_guidance_updated_at);
-    const bool atc_enabled = carrot_atc_mode >= 1 && carrot_atc_mode <= 3;
-    const bool atc_fresh = carrot_navi_guidance_updated_at != 0 &&
-                           guidance_age >= -5000 && guidance_age <= 3000;
-    int atc_direction = 0;
-    const CarrotAtcKind atc_kind = carrotAtcKind(carrot_navi_turn_type,
-                                                 carrot_navi_instruction, &atc_direction);
-    const float v_ego = car_state.getVEgo();
-    const float trigger_distance = std::max(35.0f, std::min(70.0f, v_ego * 3.0f));
-    const bool opposite_torque = car_state.getSteeringPressed() &&
-      ((atc_direction < 0 && car_state.getSteeringTorque() < 0) ||
-       (atc_direction > 0 && car_state.getSteeringTorque() > 0));
-    const bool conflicting_blinker =
-      (atc_direction < 0 && car_state.getRightBlinker()) ||
-      (atc_direction > 0 && car_state.getLeftBlinker());
-    const bool steering_active = atc_fresh && (carrot_atc_mode == 1 || carrot_atc_mode == 2) &&
-      sm["carControl"].getCarControl().getLatActive() && !car_state.getBrakePressed() &&
-      !opposite_torque && !conflicting_blinker &&
-      (atc_kind == CarrotAtcKind::TURN || atc_kind == CarrotAtcKind::UTURN) &&
-      carrot_navi_distance >= 3 && carrot_navi_distance <= trigger_distance &&
-      v_ego <= 60.0f / 3.6f;
-    const bool speed_active = atc_fresh && (carrot_atc_mode == 2 || carrot_atc_mode == 3) &&
-      !car_state.getBrakePressed() &&
-      (atc_kind == CarrotAtcKind::TURN || atc_kind == CarrotAtcKind::UTURN ||
-       atc_kind == CarrotAtcKind::ROTARY) &&
-      carrot_navi_distance >= 0 && carrot_navi_distance <= 350;
+    const auto tpms = car_state.getTpms();
+    const std::array<float, 4> pressures = {
+      tpms.getFl(), tpms.getFr(), tpms.getRl(), tpms.getRr()
+    };
+    ctRect(p, ds_box, CT_BLACK_A(220), 15, 2, CT_WHITE_A(170));
 
-    // desire_helper.py 의 회전종료 페이드(turn_direction_latched/turn_ll_prob)와
-    // 표시를 맞춘다: steering_active 가 거리/속도 조건을 벗어나 순간적으로 꺼져도,
-    // 모델이 아직 이 방향 회전을 인지하고 있으면(modelV2 meta.desireState의
-    // turnLeft@1/turnRight@2, log.capnp LateralPlan.Desire 순번) 0.5초에 걸쳐
-    // 파란색 표시를 유지하다 서서히 회색으로 되돌아간다.
-    const uint64_t atc_ui_now_ms = millis_since_boot();
-    const float atc_ui_dt = (atc_ui_last_frame_ms == 0)
-      ? 0.0f : std::min(0.1f, (atc_ui_now_ms - atc_ui_last_frame_ms) / 1000.0f);
-    atc_ui_last_frame_ms = atc_ui_now_ms;
+    // Front-left / front-right on top, rear-left / rear-right on bottom.
+    p.save();
+    p.setPen(QPen(CT_WHITE_A(120), 1));
+    p.drawLine(ds_box.center().x(), ds_box.top() + 3,
+               ds_box.center().x(), ds_box.bottom() - 3);
+    p.drawLine(ds_box.left() + 3, ds_box.center().y(),
+               ds_box.right() - 3, ds_box.center().y());
+    p.restore();
 
-    float atc_ui_turn_model_prob = 0.0f;
-    if (!steering_active && atc_ui_direction_latched != 0) {
-      const auto &desire_state = sm["modelV2"].getModelV2().getMeta().getDesireState();
-      const int idx = atc_ui_direction_latched < 0 ? 1 : 2;  // turnLeft@1 / turnRight@2
-      if (idx < static_cast<int>(desire_state.size())) atc_ui_turn_model_prob = desire_state[idx];
+    const int cell_w = ds_box.width() / 2;
+    const int cell_h = ds_box.height() / 2;
+    const std::array<QRect, 4> cells = {
+      QRect(ds_box.left(), ds_box.top(), cell_w, cell_h),
+      QRect(ds_box.left() + cell_w, ds_box.top(), ds_box.width() - cell_w, cell_h),
+      QRect(ds_box.left(), ds_box.top() + cell_h, cell_w, ds_box.height() - cell_h),
+      QRect(ds_box.left() + cell_w, ds_box.top() + cell_h,
+            ds_box.width() - cell_w, ds_box.height() - cell_h)
+    };
+    for (int i = 0; i < 4; ++i) {
+      QString pressure = get_tpms_text(pressures[i]);
+      if (pressure.isEmpty()) pressure = "--";
+      ctTextIn(p, cells[i], pressure, 40, get_tpms_color(pressures[i]), true);
     }
-    if (steering_active) {
-      atc_ui_direction_latched = atc_direction;
-      atc_ui_turn_ll_prob = 1.0f;
-    } else if (atc_ui_turn_model_prob > 0.02f && atc_ui_turn_ll_prob > 0.0f) {
-      atc_ui_turn_ll_prob = std::max(0.0f, atc_ui_turn_ll_prob - 2.0f * atc_ui_dt);
-    } else {
-      atc_ui_direction_latched = 0;
-      atc_ui_turn_ll_prob = 1.0f;
-    }
-    const bool steering_active_display = steering_active ||
-      (atc_ui_direction_latched != 0 && atc_ui_turn_ll_prob > 0.0f);
-
-    QColor atc_color = CT_GREY_A(210);  // off / waiting
-    if (atc_enabled && !atc_fresh)      atc_color = CT_RED_A(230);       // data lost
-    else if (steering_active_display)   atc_color = CT_BLUE_A(230);      // steering
-    else if (speed_active)              atc_color = CT_ORANGE_A(230);    // slowing
-
-    ctRect(p, ds_box, atc_color, 15, 2);
-    ctTextIn(p, QRect(ds_box.x(), ds_box.y(), ds_box.width(), 34), "ATC", 25, CT_WHITE);
-    const QString atc_distance = atc_fresh && carrot_navi_distance >= 0
-      ? QString("%1m").arg(carrot_navi_distance) : QString("--");
-    ctTextIn(p, QRect(ds_box.x(), ds_box.y() + 34, ds_box.width(), 56), atc_distance, 36, CT_WHITE);
 
     dx += 150;
     ds_box.moveLeft(dx - 65);

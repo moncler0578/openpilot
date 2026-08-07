@@ -87,9 +87,29 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"AccessToken", CLEAR_ON_MANAGER_START | DONT_LOG},
     {"AthenadPid", PERSISTENT},
     {"AthenadUploadQueue", PERSISTENT},
-    {"AutoAscc", PERSISTENT},
+    {"AutoCruiseControl", PERSISTENT},
+    {"AutoGasTokSpeed", PERSISTENT},
+    {"AutoGasCancelSpeed", PERSISTENT},
+    {"SpeedFromPCM", PERSISTENT},
     {"AutoSpeedUptoRoadSpeedLimit", PERSISTENT},
+    {"AutoRoadSpeedAdjust", PERSISTENT},
+    {"AutoRoadSpeedLimitOffset", PERSISTENT},
+    {"AutoNaviSpeedSafetyFactor", PERSISTENT},
+    {"CruiseButtonMode", PERSISTENT},
+    {"CruiseSpeedUnit", PERSISTENT},
+    {"CruiseSpeedUnitBasic", PERSISTENT},
+    {"CruiseButtonLongDelay", PERSISTENT},
+    {"CruiseSpeed1", PERSISTENT},
+    {"CruiseSpeed2", PERSISTENT},
+    {"CruiseSpeed3", PERSISTENT},
+    {"CruiseSpeed4", PERSISTENT},
+    {"CruiseSpeed5", PERSISTENT},
     {"AutoGasResumeGuard", PERSISTENT},            // 가속페달 재개 안전조건 (깜빡이/근접 앞차)   // 도로제한속도 대비 자동증속 상한(%), 0=off
+    {"AutoResumeFromGas", PERSISTENT},
+    {"AutoResumeFromGasSpeedMode", PERSISTENT},
+    {"AutoResumeFromBrakeRelease", PERSISTENT},
+    {"AutoResumeFromBrakeCarSpeed", PERSISTENT},
+    {"AutoResumeFromBrakeReleaseDist", PERSISTENT},
     {"CalibrationParams", PERSISTENT},
     {"CarBatteryCapacity", PERSISTENT},
     {"CarParams", CLEAR_ON_MANAGER_START | CLEAR_ON_IGNITION_ON},
@@ -215,7 +235,6 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"CarrotAutoTurnEndTime", PERSISTENT},
     {"ACCStopDistance", PERSISTENT},             // ACC 모드 정지거리 (m), 기본 6
     {"E2EStopDistance", PERSISTENT},             // E2E 모드 정지거리 (m), 기본 6
-    {"HumanFollowing", PERSISTENT},
     {"MyDrivingMode", PERSISTENT},             // 주행모드 1:ECO 2:SAFE 3:NORM 4:FAST
     {"ShowGearAnimation", PERSISTENT},
     {"ShowCarrotHud", PERSISTENT},              // 1=좌측 carrot HUD 박스 표시, 0=숨김
@@ -225,6 +244,10 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"EonClusterHudFps", PERSISTENT},
     {"EonClusterHudJpegQuality", PERSISTENT},
     {"EonClusterHudPanelLayout", PERSISTENT},
+    {"ShowDateTime", PERSISTENT},               // 0=끔, 1=시간+날짜, 2=시간, 3=날짜
+    {"ShowPathWidth", PERSISTENT},               // 경로 반폭 cm (90=0.90m)
+    {"ShowPathStatusColor", PERSISTENT},         // 가감속 상태에 따른 경로 색상
+    {"ShowPathBrakeBorder", PERSISTENT},         // 브레이크등 점등 시 빨간 경로 테두리
     {"CustomSteerRatio", PERSISTENT},          // 고정 조향비 x100
     {"UseLiveSteerRatio", PERSISTENT},         // 1=liveParameters 학습 조향비 사용
     {"SteerActuatorDelay", PERSISTENT},        // 조향 지연 보상 x100 (초)
@@ -266,10 +289,6 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"LongitudinalActuatorDelayUpperBound", PERSISTENT},
     {"StoppingAccel", PERSISTENT},
     // 학습 대상 파라미터 (x100 정수 저장)
-    {"CruiseMaxVals0", PERSISTENT},            // 0~36 km/h 최대가속 (기본 180 = 1.80m/s^2)
-    {"CruiseMaxVals1", PERSISTENT},            // 36~90 km/h (기본 120)
-    {"CruiseMaxVals2", PERSISTENT},            // 90~144 km/h (기본 80)
-    {"CruiseMaxVals3", PERSISTENT},            // 144 km/h~ (기본 60)
     {"TFollowGap1", PERSISTENT},               // GAP1 (default 110 = 1.10s)
     {"TFollowGap2", PERSISTENT},               // GAP2 (default 120 = 1.20s)
     {"TFollowGap3", PERSISTENT},               // GAP3 (default 140 = 1.40s)

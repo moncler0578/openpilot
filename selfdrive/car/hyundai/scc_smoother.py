@@ -10,7 +10,8 @@ from common.conversions import Conversions as CV
 from selfdrive.car.hyundai.values import Buttons
 from common.params import Params
 from selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX, V_CRUISE_MIN, V_CRUISE_DELTA_KM, V_CRUISE_DELTA_MI, CONTROL_N
-from selfdrive.controls.lib.low_speed_long import read_cruise_speed_min
+from selfdrive.controls.lib.low_speed_long import AutoResumeController, STOCK_SCC_LEADLESS_MIN_SPEED_KPH, \
+  read_cruise_speed_min
 from selfdrive.controls.lib.lateral_planner import TRAJECTORY_SIZE
 from selfdrive.controls.lib.carrot_navi_atc import CarrotNaviAtc
 
@@ -95,8 +96,15 @@ class SccSmoother:
     self.stock_weight = 0.
 
     self.auto_speed_up_ratio = 0.0
+    self.auto_road_speed_adjust = 0.0
+    self.auto_road_speed_limit_offset = 0.0
+    self.auto_navi_speed_safety_factor = 1.0
+    self.last_road_limit_speed = 0.0
     self._pause_auto_speed_up = False
     self.auto_gas_resume_guard = True
+    self.auto_resume = AutoResumeController()
+    self.auto_resume_request = False
+    self.auto_resume_set_speed_kph = 0.0
     self.carrot_atc = CarrotNaviAtc()
     self.initial_gap_applied = False
 
@@ -106,8 +114,15 @@ class SccSmoother:
     self.sync_set_speed_while_gas_pressed = self.params.get_bool('SccSmootherSyncGasPressed')
     self.is_metric = self.params.get_bool('IsMetric')
     self.e2e_long = self.params.get_bool('ExperimentalMode')
-    self.autoascc = self.params.get_bool('AutoAscc')
+    self.auto_cruise_control = self.params.get_int('AutoCruiseControl')
     self.auto_gas_resume_guard = self.params.get_bool('AutoGasResumeGuard')
+    self.auto_resume_from_gas = int(clip(self.params.get_int('AutoResumeFromGas'), 0, 2))
+    self.auto_resume_from_gas_speed = float(clip(self.params.get_int('AutoGasTokSpeed'), 5, 60))
+    self.auto_gas_cancel_speed = float(clip(self.params.get_int('AutoGasCancelSpeed'), 0, 60))
+    self.auto_resume_from_gas_speed_mode = int(clip(self.params.get_int('AutoResumeFromGasSpeedMode'), 0, 2))
+    self.auto_resume_from_brake_release = self.params.get_bool('AutoResumeFromBrakeRelease')
+    self.auto_resume_from_brake_speed = float(clip(self.params.get_int('AutoResumeFromBrakeCarSpeed'), 5, 60))
+    self.auto_resume_from_brake_distance = float(clip(self.params.get_int('AutoResumeFromBrakeReleaseDist'), 2, 50))
     self.min_set_speed_kph = read_cruise_speed_min(self.params)
     if hasattr(self, "speed_conv_to_clu"):
       self.min_set_speed_clu = self.kph_to_clu(self.min_set_speed_kph)
@@ -120,6 +135,9 @@ class SccSmoother:
       self.auto_speed_up_ratio = float(self.params.get("AutoSpeedUptoRoadSpeedLimit", encoding="utf8") or "0") * 0.01
     except (TypeError, ValueError):
       self.auto_speed_up_ratio = 0.0
+    self.auto_road_speed_adjust = float(clip(self.params.get_int("AutoRoadSpeedAdjust"), -100, 100)) * 0.01
+    self.auto_road_speed_limit_offset = float(clip(self.params.get_int("AutoRoadSpeedLimitOffset"), -30, 30))
+    self.auto_navi_speed_safety_factor = float(clip(self.params.get_int("AutoNaviSpeedSafetyFactor"), 80, 120)) * 0.01
     try:
       self.carrot_atc_mode = int(self.params.get("CarrotAutoTurnControl", encoding="utf8") or "0")
       self.carrot_atc_speed = float(self.params.get("CarrotAutoTurnSpeed", encoding="utf8") or "30")
@@ -201,7 +219,9 @@ class SccSmoother:
 
     self.active_cam = road_limit_speed > 0 and left_dist > 0
 
+    normal_road_limit_speed = 0.0
     if road_speed_limiter.roadLimitSpeed is not None:
+      normal_road_limit_speed = float(road_speed_limiter.roadLimitSpeed.roadLimitSpeed)
       camSpeedFactor = clip(road_speed_limiter.roadLimitSpeed.camSpeedFactor, 1.0, 1.1)
       self.over_speed_limit = road_speed_limiter.roadLimitSpeed.camLimitSpeedLeftDist > 0 and \
                               0 < road_limit_speed * camSpeedFactor < clu11_speed + 2
@@ -245,15 +265,18 @@ class SccSmoother:
       self.limited_lead = False
 
     if self.carrot_atc_mode in (2, 3) and not CS.out.brakePressed:
-      atc_limit_kph = self.carrot_atc.speed_limit_kph(
+      atc_limits_kph = self.carrot_atc.speed_limits_kph(
         self.carrot_atc.update(), self.carrot_atc_speed, self.carrot_atc_end_time)
-      if atc_limit_kph is not None:
-        max_speed_clu = min(max_speed_clu, self.kph_to_clu(atc_limit_kph))
+      valid_atc_limits = [limit for limit in atc_limits_kph if limit is not None]
+      if valid_atc_limits:
+        max_speed_clu = min(max_speed_clu, self.kph_to_clu(min(valid_atc_limits)))
 
     self.update_max_speed(int(max_speed_clu + 0.5),
                           curv_limit != 0 and curv_limit == int(max_speed_clu))
 
-    return road_limit_speed, left_dist, max_speed_log
+    # Camera/section limits above are temporary deceleration targets. Carrot's
+    # automatic set-speed logic uses the normal road limit instead.
+    return normal_road_limit_speed, left_dist, max_speed_log
 
   def update(self, enabled, can_sends, packer, CC, CS, frame, controls):
 
@@ -267,7 +290,12 @@ class SccSmoother:
     road_limit_speed, left_dist, max_speed_log = self.cal_max_speed(frame, CC, CS, controls.sm, clu11_speed, controls)
 
     # kph
-    controls.applyMaxSpeed = float(clip(CS.cruiseState_speed * CV.MS_TO_KPH, self.min_set_speed_kph,
+    # With openpilot longitudinal control, v_cruise_kph is the authoritative
+    # SET/RES target. The SCC11 value can arrive several cycles later, which
+    # otherwise makes the UI lag behind the button target or jump back to the
+    # previous value while the cluster catches up.
+    cruise_set_speed_kph = controls.v_cruise_kph if self.longcontrol else CS.cruiseState_speed * CV.MS_TO_KPH
+    controls.applyMaxSpeed = float(clip(cruise_set_speed_kph, self.min_set_speed_kph,
                                                 self.max_speed_clu * self.speed_conv_to_ms * CV.MS_TO_KPH))
     CC.sccSmoother.longControl = self.longcontrol
     CC.sccSmoother.applyMaxSpeed = controls.applyMaxSpeed
@@ -282,25 +310,44 @@ class SccSmoother:
     # driver's selection has priority.
     initial_gap_button = self.get_initial_gap_button(ascc_enabled, CS)
 
-    # Auto-resume Cruise Set Speed by JangPoo
+    # aPilot-style auto resume inputs.
     dRel = 0.
     lead = self.get_lead(controls.sm)
     if lead is not None:
       dRel = lead.dRel
 
-    # Auto-resume Cruise Set Speed by JangPoo
-    ascc_auto_set = enabled and (clu11_speed > 30 or (CS.obj_valid and dRel > 1)) \
-                    and CS.gas_pressed and CS.prev_cruiseState_speed and not CS.cruiseState_speed
+    traffic_state = controls.sm['longitudinalPlan'].trafficState
+    self.auto_resume_request, self.auto_resume_set_speed_kph = self.auto_resume.update(
+      available=enabled and self.auto_cruise_control > 0,
+      cruise_enabled=CS.cruiseState_enabled,
+      gas_mode=self.auto_resume_from_gas,
+      gas_resume_speed_kph=self.auto_resume_from_gas_speed,
+      gas_cancel_speed_kph=self.auto_gas_cancel_speed,
+      speed_mode=self.auto_resume_from_gas_speed_mode,
+      brake_release_enabled=self.auto_resume_from_brake_release,
+      brake_resume_speed_kph=self.auto_resume_from_brake_speed,
+      brake_lead_distance=self.auto_resume_from_brake_distance,
+      cruise_speed_min=self.min_set_speed_kph,
+      gas_pressed=CS.out.gasPressed,
+      gas=CS.out.gas,
+      brake_pressed=CS.out.brakePressed,
+      v_ego=CS.out.vEgo,
+      steering_angle_deg=CS.out.steeringAngleDeg,
+      left_blinker=CS.out.leftBlinker,
+      right_blinker=CS.out.rightBlinker,
+      traffic_state=traffic_state,
+      has_lead=lead is not None,
+      lead_distance=dRel,
+      previous_speed_kph=CS.prev_cruiseState_speed * CV.MS_TO_KPH,
+      safety_guard=self.auto_gas_resume_guard,
+      dt=DT_CTRL)
 
-    # ── carrot(_gas_pressed_count == -1) 이식 : 재개 안전조건 ────────────────
-    #   깜빡이를 켰거나 앞차가 지나치게 가까우면 자동 재개하지 않는다.
-    #   캐롯은 이 경우 크루즈를 끄지만, 이 포크는 순정 SCC 가 크루즈를 쥐고 있어
-    #   "재개하지 않음"까지만 한다.
-    if ascc_auto_set and self.auto_gas_resume_guard:
-      if CS.leftBlinker or CS.rightBlinker:
-        ascc_auto_set = False
-      elif 0 < dRel < CS.out.vEgo * 0.8:
-        ascc_auto_set = False
+    # Above the stock threshold, or without openpilot longitudinal control,
+    # keep using real CLU11 buttons. Low-speed long control is handled by the
+    # direct SCC request path in CarController.
+    stock_resume_available = (clu11_speed >= STOCK_SCC_LEADLESS_MIN_SPEED_KPH or
+                              (not self.longcontrol and CS.obj_valid and dRel > 1))
+    ascc_auto_set = self.auto_resume_request and stock_resume_available
 
     if not self.longcontrol:
       if (not ascc_enabled or CS.standstill or CS.cruise_buttons != Buttons.NONE) and not ascc_auto_set:
@@ -323,13 +370,13 @@ class SccSmoother:
         if initial_gap_button != Buttons.NONE and CS.cruise_buttons == Buttons.NONE:
           self.btn = initial_gap_button
         elif ascc_enabled:
-          if self.autoascc:
+          if self.auto_cruise_control > 0:
             self.btn = self.get_button(CS.cruiseState_speed * self.speed_conv_to_clu)
-        elif ascc_auto_set and clu11_speed < 30:
-          if self.autoascc:
+        elif ascc_auto_set and clu11_speed < STOCK_SCC_LEADLESS_MIN_SPEED_KPH:
+          if self.auto_cruise_control > 0:
             self.btn = Buttons.SET_DECEL
         else:
-          if self.autoascc:
+          if self.auto_cruise_control > 0:
             self.btn = Buttons.RES_ACCEL
         self.alive_count = SccSmoother.get_alive_count()
 
@@ -369,7 +416,8 @@ class SccSmoother:
     앞차가 내 설정속도보다 빠르고 도로제한속도 아래이면 설정속도를 자동으로 올린다.
     선행차가 없으면 아무것도 하지 않는다 (빈 도로에서 멋대로 올라가지 않게).
     """
-    if self.auto_speed_up_ratio <= 0.0 or road_limit_speed <= 0:
+    if road_limit_speed <= 0:
+      self.last_road_limit_speed = road_limit_speed
       return
 
     # SET 을 누르면 자동증속 일시중단, RES 를 누르면 해제
@@ -377,11 +425,34 @@ class SccSmoother:
       self._pause_auto_speed_up = True
     elif CS.cruise_buttons == Buttons.RES_ACCEL:
       self._pause_auto_speed_up = False
-    if self._pause_auto_speed_up:
+
+    set_speed_kph = controls.v_cruise_kph if self.longcontrol else CS.cruiseState_speed * CV.MS_TO_KPH
+    if set_speed_kph <= 0:
+      self.last_road_limit_speed = road_limit_speed
       return
 
+    # carrot-wip parity: optionally follow a changed normal road limit. A
+    # default value of zero preserves the driver's set speed.
+    if self.last_road_limit_speed > 0 and road_limit_speed != self.last_road_limit_speed:
+      if self.auto_road_speed_adjust < 0.0:
+        if self.auto_road_speed_limit_offset < 0.0:
+          set_speed_kph = road_limit_speed * self.auto_navi_speed_safety_factor
+        else:
+          set_speed_kph = road_limit_speed + self.auto_road_speed_limit_offset
+      elif road_limit_speed < self.last_road_limit_speed and self.auto_road_speed_adjust > 0.0:
+        adjusted = road_limit_speed * self.auto_road_speed_adjust + set_speed_kph * (1.0 - self.auto_road_speed_adjust)
+        set_speed_kph = min(set_speed_kph, adjusted)
+
+      set_speed_kph = float(clip(set_speed_kph, self.min_set_speed_kph, MAX_SET_SPEED_KPH))
+      if self.longcontrol:
+        controls.v_cruise_kph = set_speed_kph
+        controls.v_cruise_cluster_kph = set_speed_kph
+      else:
+        self.target_speed = self.kph_to_clu(set_speed_kph)
+
+    self.last_road_limit_speed = road_limit_speed
     road_limit_kph = road_limit_speed * self.auto_speed_up_ratio
-    if road_limit_kph < 1.0:
+    if self._pause_auto_speed_up or road_limit_kph < 1.0:
       return
 
     lead = self.get_lead(controls.sm)
@@ -389,18 +460,17 @@ class SccSmoother:
       return
     v_lead_kph = lead.vLeadK * CV.MS_TO_KPH
 
-    # 롱컨에서는 controls.v_cruise_kph 가 매 프레임 순정 설정속도로 덮어써지므로
-    # (update_cruise_buttons) 직접 쓰지 않고 target_speed 를 올려
-    # get_button() 이 RES_ACCEL 을 내보내도록 한다. → AutoAscc 가 켜져 있어야 동작.
-    set_speed_kph = CS.cruiseState_speed * CV.MS_TO_KPH
-    if set_speed_kph <= 0:
-      return
-
+    # Openpilot long updates its own set speed directly. PCM cruise requests
+    # the equivalent RES button target through target_speed.
     if v_lead_kph + 5 > set_speed_kph \
        and set_speed_kph < road_limit_kph \
        and lead.dRel < 60:
       new_kph = min(set_speed_kph + 5, road_limit_kph)
-      self.target_speed = max(self.target_speed, self.kph_to_clu(new_kph))
+      if self.longcontrol:
+        controls.v_cruise_kph = new_kph
+        controls.v_cruise_cluster_kph = new_kph
+      else:
+        self.target_speed = max(self.target_speed, self.kph_to_clu(new_kph))
 
   def get_lead(self, sm):
 
@@ -494,11 +564,23 @@ class SccSmoother:
     is_cruise_enabled = car_set_speed != 0 and car_set_speed != 255 and CS.cruiseState.enabled and controls.CP.pcmCruise
 
     if is_cruise_enabled:
-      if longcontrol:
-        v_cruise_kph = CS.cruiseState.speed * CV.MS_TO_KPH
+      if longcontrol and controls.speed_from_pcm == 1:
+        v_cruise_kph = car_set_speed
+      elif longcontrol:
+        # Once cruise is active, own the set speed in openpilot and apply the
+        # physical RES/+ and SET/- events directly. Do not overwrite it every
+        # cycle with the delayed SCC11 VSetDis feedback.
+        v_cruise_kph = SccSmoother.update_v_cruise(controls.v_cruise_kph, CS.buttonEvents, controls.enabled,
+                                                   controls.is_metric, controls.cruise_speed_min, CS.vEgo,
+                                                   controls.cruise_button_mode, controls.cruise_speed_unit,
+                                                   controls.cruise_speed_unit_basic, controls.cruise_button_long_delay,
+                                                   controls.cruise_speed_table)
       else:
         v_cruise_kph = SccSmoother.update_v_cruise(controls.v_cruise_kph, CS.buttonEvents, controls.enabled,
-                                                   controls.is_metric, controls.cruise_speed_min)
+                                                   controls.is_metric, controls.cruise_speed_min, CS.vEgo,
+                                                   controls.cruise_button_mode, controls.cruise_speed_unit,
+                                                   controls.cruise_speed_unit_basic, controls.cruise_button_long_delay,
+                                                   controls.cruise_speed_table)
     else:
       v_cruise_kph = 0
 
@@ -513,9 +595,16 @@ class SccSmoother:
       controls.LoC.reset(v_pid=CS.vEgo)
 
     controls.v_cruise_kph = v_cruise_kph
+    if longcontrol:
+      # hudControl.setSpeed and the outgoing SCC11 VSetDis use this value.
+      # Keep it synchronized with the SCC set speed so SET/RES changes reach
+      # the vehicle cluster in the same control cycle as the openpilot UI.
+      controls.v_cruise_cluster_kph = v_cruise_kph
 
   @staticmethod
-  def update_v_cruise(v_cruise_kph, buttonEvents, enabled, metric, min_set_speed_kph=MIN_SET_SPEED_KPH):
+  def update_v_cruise(v_cruise_kph, buttonEvents, enabled, metric, min_set_speed_kph=MIN_SET_SPEED_KPH,
+                      v_ego=0.0, button_mode=0, speed_unit=10, basic_unit=1,
+                      long_delay=70, speed_table=None):
 
     global ButtonCnt, LongPressed, ButtonPrev
     if enabled:
@@ -527,19 +616,35 @@ class SccSmoother:
           ButtonPrev = b.type
         elif not b.pressed and ButtonCnt:
           if not LongPressed and b.type == ButtonType.accelCruise:
-            v_cruise_kph += 1 if metric else 1 * CV.MPH_TO_KPH
+            if button_mode == 3 and speed_table:
+              v_cruise_kph = next((v for v in speed_table if v > v_cruise_kph + 0.1),
+                                  v_cruise_kph + speed_unit)
+            elif button_mode in (1, 2):
+              if v_cruise_kph < 30:
+                v_cruise_kph = 30
+              else:
+                v_cruise_kph = ((v_cruise_kph // speed_unit) + 1) * speed_unit
+            else:
+              unit = basic_unit if metric else basic_unit * CV.MPH_TO_KPH
+              v_cruise_kph += unit
           elif not LongPressed and b.type == ButtonType.decelCruise:
-            v_cruise_kph -= 1 if metric else 1 * CV.MPH_TO_KPH
+            current_kph = v_ego * CV.MS_TO_KPH
+            if button_mode in (2, 3) and current_kph > v_cruise_kph + 2:
+              v_cruise_kph = current_kph
+            else:
+              unit = speed_unit if button_mode in (1, 2, 3) else basic_unit
+              unit = unit if metric else unit * CV.MPH_TO_KPH
+              v_cruise_kph -= unit
           LongPressed = False
           ButtonCnt = 0
-      if ButtonCnt > 70:
+      if ButtonCnt > long_delay:
         LongPressed = True
         V_CRUISE_DELTA = V_CRUISE_DELTA_KM if metric else V_CRUISE_DELTA_MI
         if ButtonPrev == ButtonType.accelCruise:
           v_cruise_kph += V_CRUISE_DELTA - v_cruise_kph % V_CRUISE_DELTA
         elif ButtonPrev == ButtonType.decelCruise:
           v_cruise_kph -= V_CRUISE_DELTA - -v_cruise_kph % V_CRUISE_DELTA
-        ButtonCnt %= 70
+        ButtonCnt %= long_delay
       v_cruise_kph = clip(v_cruise_kph, min_set_speed_kph, MAX_SET_SPEED_KPH)
 
     return v_cruise_kph

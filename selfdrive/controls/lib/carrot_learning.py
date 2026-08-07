@@ -4,9 +4,6 @@ CarrotPilot Auto-Tuner 포팅판 (원본 commit 9dd5e2c, selfdrive/carrot/carrot
 이 포크(구형 openpilot + neokii SCC 구조)에 맞춰 단순화한 운전자 개입 기반 학습기.
 설치 위치: selfdrive/controls/lib/carrot_learning.py
 
-  [Phase 1] CruiseMaxVals0~3 : 속도대역별 최대가속 (planner의 A_CRUISE_MAX_VALS 대체)
-            트리거: 인게이지 중 gasPressed (설정속도보다 3km/h 이상 낮을 때만)
-            발동:  대역당 누적 >= 10초
   [Phase 2] OffsetTotal : 직진 주행 편차 보정 (이 포크에 이미 존재하는 파라미터, 단위 m)
             트리거: 직진(|조향각|<5도, 오버라이드 없음) 중 조향각 평균 편차
             발동:  샘플 >= 400개 (0.05s 주기 -> 약 20초)
@@ -60,7 +57,7 @@ CarrotPilot Auto-Tuner 포팅판 (원본 commit 9dd5e2c, selfdrive/carrot/carrot
             켤 때 한꺼번에 반영되는 문제가 있었다. 이제 update() 진입 시점에 두 토글을
             읽어, 해당 카테고리의 누적 자체를 건너뛴다.
               - apply_lat  : Phase 2(OffsetTotal) / Phase 5(토크 조향) / steerRatio 게이트
-              - apply_long : Phase 1(가속) / Phase 4(추종거리) / Phase 9(수동주행 로거) 게이트
+              - apply_long : Phase 4(추종거리) / Phase 9(수동주행 로거) 게이트
 
 추가 (원본 commit ffec86e, LateralTorqueKpV/KiV 대상 → latAccelFactor/friction에 적응):
   [Phase 5 진동-우선 판정] 원본은 커브 추종오차의 '부호 패턴'(반전=진동 / 유지=정상상태
@@ -99,10 +96,10 @@ from common.realtime import DT_MDL
 
 _DT = DT_MDL  # longitudinal_planner.update() 호출 주기 (0.05s)
 
-# ── Phase 1 상수: A_CRUISE_MAX_BP [0,10,25,40] m/s 와 동일 대역 (kph 환산) ──
+# ── Phase 9 수동주행 로거 속도 대역 (km/h) ──
 _BP_KPH = [0., 36., 90., 144.]
 _NUM_BANDS = len(_BP_KPH)
-_MAX_DELTA = 15                           # 세션당 변동폭 제한 (원본 ±15)
+_TFOLLOW_MAX_DELTA = 15                   # 추종거리 세션당 변동폭 제한
 
 # ── Phase 2 상수: OffsetTotal (단위 m, float) ──
 _STRAIGHT_DEG = 5.0
@@ -163,7 +160,7 @@ _FRICTION_MIN, _FRICTION_MAX = 0.0, 0.20
 #   - gas 개입   = 그 구간 감속이 과함 / 탈출가속이 부족함 → 완화(가속도 값↑, 0 방향)
 #   - brake 개입 = 그 구간 감속이 부족함 / 탈출가속이 과함 → 강화(가속도 값↓)
 # BP(구간 경계)는 vision_turn_controller.py 원본 그대로 고정하고, V(가속도) 값만
-# CruiseMaxVals/TFollowGap과 동일한 패턴(Params, x100 정수)으로 학습·대체한다.
+# TFollowGap과 동일한 패턴(Params, x100 정수)으로 학습·대체한다.
 _TURN_ENTERING_BP = [1.3, 3.0]             # _ENTERING_SMOOTH_DECEL_BP 와 동일 (max_pred_lat_acc)
 _TURN_ENTERING_KEYS = ["TurnEnteringDecel0", "TurnEnteringDecel1"]
 _TURN_ENTERING_DEFAULTS = [-10, -30]       # _ENTERING_SMOOTH_DECEL_V x100
@@ -182,7 +179,7 @@ _TURN_LEAVING_MIN, _TURN_LEAVING_MAX = 0, 150        # 0.00 ~ 1.50 m/s^2 (x100)
 _TURN_ACC_STEP = 5              # 1회 조정량 (x100 단위 = 0.05 m/s^2)
 _TURN_GAS_THRESHOLD_SEC = 8.0   # 밴드당 가속 개입 누적 임계 (감속 과다/탈출가속 부족 신호)
 _TURN_BRAKE_THRESHOLD_SEC = 6.0 # 밴드당 브레이크 개입 누적 임계 (감속 부족/탈출가속 과다 신호)
-_TURN_MAX_DELTA = 20            # 세션당 변동폭 제한 (0.20 m/s^2, CruiseMaxVals ±15 패턴 준용)
+_TURN_MAX_DELTA = 20            # 세션당 변동폭 제한 (0.20 m/s^2)
 # ────────────────────────────────────────────────────────────────────────
 
 # ── SteerActuatorDelay (nTune common.json) ──
@@ -389,9 +386,6 @@ def _remove(params, key):
 
 
 # ── planner / long_mpc 에서 학습값을 읽어가는 공용 함수 ───────────────────
-def read_learned_accel_vals(params):
-  return [1.8, 1.2, 0.8, 0.6]
-
 def read_learned_tfollow(params):
   """long_mpc의 CRUISE_GAP_V 대체값 (초 리스트, 길이 4)"""
   return [float(np.clip(_get_int(params, _TFOLLOW_KEYS[i], _TFOLLOW_DEFAULTS[i]),
@@ -526,7 +520,7 @@ class CarrotLearner:
     # 반영되어, 꺼둔 동안에도 누적은 계속되다가 다시 켰을 때 한꺼번에 반영되는
     # 문제가 있었다. 이제 update() 진입 시점에 읽어 누적 자체를 게이팅한다.
     #   - apply_lat  : Phase 2(OffsetTotal) / Phase 5(토크 조향) / steerRatio 게이트
-    #   - apply_long : Phase 1(가속) / Phase 4(추종거리) / Phase 9(수동주행 로거) 게이트
+    #   - apply_long : Phase 4(추종거리) / Phase 9(수동주행 로거) 게이트
     raw_lat = self._params.get("CarrotTunerApplyLat", encoding='utf8')
     raw_long = self._params.get("CarrotTunerApplyLong", encoding='utf8')
     apply_lat = True if not raw_lat else raw_lat.strip() == "1"
@@ -903,7 +897,7 @@ class CarrotLearner:
           rec = min(_TFOLLOW_MAX, cur + _TFOLLOW_WIDEN_STEP)
           reason = f"too short ({self._tfollow_brake_acc[i]:.0f}s brake)"
         if rec != cur:
-          rec = cur + int(np.clip(rec - cur, -_MAX_DELTA, _MAX_DELTA))
+          rec = cur + int(np.clip(rec - cur, -_TFOLLOW_MAX_DELTA, _TFOLLOW_MAX_DELTA))
         if rec != cur:
           result["거리 (Following Distance)"][key] = {
             "current": cur, "recommended": rec,

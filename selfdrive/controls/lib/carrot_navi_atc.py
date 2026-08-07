@@ -41,7 +41,20 @@ class CarrotNaviAtc:
   @staticmethod
   def empty_state():
     return {"fresh": False, "kind": "none", "direction": 0,
-            "distance": -1.0, "turn_type": -1, "text": ""}
+            "distance": -1.0, "turn_type": -1, "text": "", "next": None}
+
+  @classmethod
+  def guidance_state(cls, guidance, fresh):
+    turn_type = int(_number(_first(guidance, (
+      "turn_type", "turnType", "nTBTTurnType", "tbt_turn_type")), -1))
+    distance = _number(_first(guidance, (
+      "distance_m", "distance", "turn_distance", "nTBTDist", "tbt_dist")), -1.0)
+    text = str(_first(guidance, (
+      "main_text", "text", "road_name", "szTBTMainText"), "") or "")
+    kind, direction = cls.classify(turn_type, text)
+    return {"fresh": fresh and kind != "none" and distance >= 0.0,
+            "kind": kind, "direction": direction, "distance": distance,
+            "turn_type": turn_type, "text": text, "next": None}
 
   def update(self):
     now = time.monotonic()
@@ -57,17 +70,15 @@ class CarrotNaviAtc:
       if age < -5.0 or age > STALE_TIMEOUT:
         self.state = self.empty_state()
         return self.state
-      guidance = root.get("guidance_current") or {}
-      turn_type = int(_number(_first(guidance, (
-        "turn_type", "turnType", "nTBTTurnType", "tbt_turn_type")), -1))
-      distance = _number(_first(guidance, (
-        "distance_m", "distance", "turn_distance", "nTBTDist", "tbt_dist")), -1.0)
-      text = str(_first(guidance, (
-        "main_text", "text", "road_name", "szTBTMainText"), "") or "")
-      kind, direction = self.classify(turn_type, text)
-      self.state = {"fresh": kind != "none" and distance >= 0.0,
-                    "kind": kind, "direction": direction, "distance": distance,
-                    "turn_type": turn_type, "text": text}
+      self.state = self.guidance_state(root.get("guidance_current") or {}, True)
+
+      # c3-style look-ahead: longitudinal control may prepare for the maneuver
+      # after the current one, but steering continues to use current guidance only.
+      next_updated_at = stream_times.get("guidance_next", guidance_updated_at)
+      next_age = time.time() - _number(next_updated_at, 0.0) / 1000.0
+      next_fresh = -5.0 <= next_age <= STALE_TIMEOUT
+      next_state = self.guidance_state(root.get("guidance_next") or {}, next_fresh)
+      self.state["next"] = next_state if next_state["fresh"] else None
     except (IOError, OSError, ValueError, TypeError):
       self.state = self.empty_state()
     return self.state
@@ -116,6 +127,15 @@ class CarrotNaviAtc:
     target_mps = target_kph / 3.6
     braking_distance = max(0.0, distance - target_mps * end_time)
     return min(250.0, math.sqrt(target_mps ** 2 + 2.0 * decel * braking_distance) * 3.6)
+
+  @classmethod
+  def speed_limits_kph(cls, state, target_kph=30.0, end_time=6.0, decel=1.2):
+    """Return current and next-maneuver limits without allowing next guidance to steer."""
+    current = cls.speed_limit_kph(state, target_kph, end_time, decel)
+    next_state = state.get("next") if isinstance(state, dict) else None
+    following = cls.speed_limit_kph(next_state, target_kph, end_time, decel) \
+      if isinstance(next_state, dict) else None
+    return current, following
 
 
 class AtcForkLaneChangeController:

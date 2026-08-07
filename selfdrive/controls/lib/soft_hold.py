@@ -7,14 +7,18 @@ class SoftHoldController:
 
   def __init__(self):
     self.active = False
+    self.released = False
     self.entry_time = 0.0
 
   def reset(self):
     self.active = False
+    self.released = False
     self.entry_time = 0.0
 
-  def update(self, available, brake_pressed, gas_pressed, v_ego, resume_pressed, dt):
-    if not available:
+  def update(self, available, brake_pressed, gas_pressed, v_ego, resume_pressed, in_drive, dt):
+    self.released = False
+
+    if not available or not in_drive:
       self.reset()
       return False
 
@@ -22,6 +26,7 @@ class SoftHoldController:
       self.entry_time = 0.0
       if gas_pressed or resume_pressed:
         self.active = False
+        self.released = True
       return self.active
 
     if gas_pressed or resume_pressed:

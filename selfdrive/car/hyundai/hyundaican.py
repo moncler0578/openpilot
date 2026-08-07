@@ -133,9 +133,12 @@ def create_scc11(packer, frame, enabled, set_speed, lead_visible, scc_live, scc1
     values["Navi_SCC_Camera_Act"] = 2 if active_cam else 0
     values["Navi_SCC_Camera_Status"] = 2 if active_cam else 0
 
+  # Keep the cluster SCC set speed synchronized with openpilot, including
+  # vehicles where the stock SCC remains live on another bus.
+  values["VSetDis"] = set_speed
+
   if not scc_live or force_long:
     values["MainMode_ACC"] = 1
-    values["VSetDis"] = set_speed
     # Preserve the legacy no-radar behavior, but never fabricate a lead for a
     # forced low-speed request when the road is actually clear.
     values["ObjValid"] = 1 if enabled and (lead_visible or not force_long) else 0
@@ -171,6 +174,7 @@ def create_scc12(packer, apply_accel, enabled, cnt, scc_live, scc12, gaspressed,
   else:
     values["aReqRaw"] = apply_accel if enabled else 0  # aReqMax
     values["aReqValue"] = apply_accel if enabled else 0  # aReqMin
+    values["StopReq"] = 1 if standstill and enabled else 0
     values["CR_VSM_Alive"] = cnt
     if not scc_live or force_long:
       values["ACCMode"] = 1 if enabled else 0  # 2 if gas padel pressed
@@ -186,7 +190,7 @@ def create_scc13(packer, scc13):
   return packer.make_can_msg("SCC13", 0, values)
 
 def create_scc14(packer, enabled, e_vgo, standstill, accel, gaspressed, objgap, scc14,
-                 jerk_upper=5.0, jerk_lower=5.0):
+                 jerk_upper=5.0, jerk_lower=5.0, cb_upper=0.0, cb_lower=0.0):
   values = copy.copy(scc14)
 
   # from xps-genesis
@@ -195,15 +199,7 @@ def create_scc14(packer, enabled, e_vgo, standstill, accel, gaspressed, objgap, 
     values["ObjGap"] = objgap
     values["JerkUpperLimit"] = max(0.0, min(12.7, jerk_upper))
     values["JerkLowerLimit"] = max(0.0, min(12.7, jerk_lower))
-    if standstill:
-      values["ComfortBandUpper"] = 0.
-      values["ComfortBandLower"] = 0.
-      if e_vgo > 0.27:
-        values["ComfortBandUpper"] = 2.
-        values["ComfortBandLower"] = 0.
-    else:
-      values["ComfortBandUpper"] = 50.
-      values["ComfortBandLower"] = 50.
+    values["ComfortBandUpper"] = cb_upper
+    values["ComfortBandLower"] = cb_lower
 
   return packer.make_can_msg("SCC14", 0, values)
-
