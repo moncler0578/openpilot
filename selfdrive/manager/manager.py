@@ -96,6 +96,11 @@ def manager_init() -> None:
     ("WideCameraOnly", "0"),       # plannerd.py 크래시 수정
     ("ShowGearAnimation", "1"),
     ("ShowCarrotHud", "1"),
+    ("EonClusterHud", "0"),
+    ("EonClusterHudFps", "10"),
+    ("EonClusterHudBrightness", "65"),
+    ("EonClusterHudJpegQuality", "58"),
+    ("EonClusterHudPanelLayout", "0"),
     ("ShowMapboxMap", "1"),
     ("ShowDateTime", "1"),
     ("ShowBlindSpotAlways", "0"),

@@ -105,7 +105,7 @@ protected:
   void drawCarrotNavi(QPainter &p);
   void drawCarrotTurnPoint(QPainter &p, const cereal::ModelDataV2::Reader &model);
   void drawCarrotPlot(QPainter &p);
-  void updateCarrotNavi();
+  void updateCarrotNavi(bool load_images = true);
 
   QPixmap ic_speed_bg;
   int  blink_timer = 0;
@@ -120,6 +120,8 @@ protected:
   int  show_path_status_color = 1;
   bool show_map_image = true;
   uint64_t carrot_navi_last_read = 0;
+  uint64_t eon_cluster_hud_last_read = 0;
+  bool eon_cluster_hud_connected = false;
   uint64_t carrot_navi_updated_at = 0;
   uint64_t carrot_navi_guidance_updated_at = 0;
   uint64_t carrot_navi_route_updated_at = 0;

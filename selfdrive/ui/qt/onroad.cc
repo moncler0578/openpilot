@@ -553,10 +553,15 @@ void NvgWindow::drawHud(QPainter &p, const cereal::ModelDataV2::Reader &model) {
   // Keep all existing driving/navigation indicators above the analysis plot.
   drawCarrotPlot(p);
 
-  updateCarrotNavi();
+  const uint64_t eon_hud_now = millis_since_boot();
+  if (eon_hud_now - eon_cluster_hud_last_read >= 500) {
+    eon_cluster_hud_last_read = eon_hud_now;
+    eon_cluster_hud_connected = Params().getBool("EonClusterHudConnected");
+  }
+  updateCarrotNavi(!eon_cluster_hud_connected);
   drawCarrotTurnPoint(p, model);
   drawCarrotLead(p);
-  drawCarrotNavi(p);
+  if (!eon_cluster_hud_connected) drawCarrotNavi(p);
   drawCarrotHud(p);
   drawSpeedLimit(p);
   drawCarrotInfo(p);

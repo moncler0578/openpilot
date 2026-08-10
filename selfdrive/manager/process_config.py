@@ -26,6 +26,7 @@ procs = [
   NativeProcess("boardd", "selfdrive/boardd", ["./boardd"], enabled=False),
   PythonProcess("calibrationd", "selfdrive.locationd.calibrationd"),
   PythonProcess("carrotnavid", "selfdrive.carrot_navi_server", enabled=EON, persistent=True),
+  PythonProcess("eon_cluster", "selfdrive.eon_cluster.eon_cluster", enabled=EON, persistent=True),
   PythonProcess("controlsd", "selfdrive.controls.controlsd"),
   PythonProcess("deleter", "selfdrive.loggerd.deleter", persistent=True),
   PythonProcess("dmonitoringd", "selfdrive.monitoring.dmonitoringd", enabled=(not PC or WEBCAM), driverview=True),
