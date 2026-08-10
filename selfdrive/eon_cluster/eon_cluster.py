@@ -12,6 +12,8 @@ PARAM_CONNECTED = "EonClusterHudConnected"
 PARAM_BRIGHTNESS = "EonClusterHudBrightness"
 PARAM_FPS = "EonClusterHudFps"
 PARAM_JPEG_QUALITY = "EonClusterHudJpegQuality"
+PARAM_SCREEN_MODE = "EonClusterHudScreenMode"
+PARAM_THEME = "EonClusterHudTheme"
 RECONNECT_INTERVAL_S = 5.0
 
 
@@ -109,6 +111,18 @@ def main():
         scene["tpms"] = {key: _field(tpms, key, None) for key in ("fl", "fr", "rl", "rr")}
         scene["driving_mode"] = _param_int(params, "MyDrivingMode", 3, 1, 4)
         scene["panel_layout"] = _param_int(params, "EonClusterHudPanelLayout", 0, 0, 1)
+        scene["screen_mode"] = _param_int(params, PARAM_SCREEN_MODE, 0, 0, 5)
+        scene["theme"] = _param_int(params, PARAM_THEME, 0, 0, 2)
+        cpu_values = list(_field(device_state, "cpuUsagePercent", []) or [])
+        temp_values = list(_field(device_state, "cpuTempC", []) or [])
+        free_space = float(_field(device_state, "freeSpacePercent", 0.0) or 0.0)
+        scene["system"] = {
+          "cpu": (sum(float(v) for v in cpu_values) / len(cpu_values)) if cpu_values else 0.0,
+          "temp": (sum(float(v) for v in temp_values) / len(temp_values)) if temp_values else 0.0,
+          "memory": float(_field(device_state, "memoryUsagePercent", 0.0) or 0.0),
+          "disk": max(0.0, min(100.0, 100.0 - free_space)) if free_space > 0.0 else 0.0,
+          "cores": [float(v) for v in cpu_values[:8]],
+        }
         gear = str(_field(car_state, "gearShifter", "")).lower()
         scene["parked"] = gear in ("p", "park") or gear.endswith(".park")
         scene["trip_report"] = trip.snapshot()
@@ -119,7 +133,9 @@ def main():
             "text2": str(_field(controls_state, "alertText2", "") or ""),
             "status": str(_field(controls_state, "alertStatus", "")),
           }
-        frame = renderer.render(speed_kph, cruise_kph, enabled, read_navi_state(), scene)
+        navi_state = read_navi_state()
+        scene["navi_live"] = bool(navi_state)
+        frame = renderer.render(speed_kph, cruise_kph, enabled, navi_state, scene)
         display.send_jpeg(renderer.encode_portrait_jpeg(frame))
       except Exception as exc:
         print("EON cluster USB frame failed: %s" % exc, flush=True)

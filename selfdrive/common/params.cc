@@ -251,6 +251,8 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"EonClusterHudFps", PERSISTENT},
     {"EonClusterHudJpegQuality", PERSISTENT},
     {"EonClusterHudPanelLayout", PERSISTENT},
+    {"EonClusterHudScreenMode", PERSISTENT},
+    {"EonClusterHudTheme", PERSISTENT},
     {"ShowMapboxMap", PERSISTENT},              // 1=Mapbox/ATC Tmap 지도 이미지 표시, 0=모든 지도 이미지 숨김
     {"ShowDateTime", PERSISTENT},               // 0=끔, 1=시간+날짜, 2=시간, 3=날짜
     {"ShowPathWidth", PERSISTENT},               // 경로 반폭 cm (90=0.90m)

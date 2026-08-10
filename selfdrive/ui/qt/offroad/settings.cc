@@ -1795,8 +1795,14 @@ VIPPanel::VIPPanel(QWidget* parent) : QWidget(parent) {
       "클러스터 HUD 화질", "JPEG 품질",
       "../assets/offroad/icon_road.png", 35, 75, 1, 0, 58, this));
   list->addItem(new ParamValueControlF("EonClusterHudPanelLayout",
-      "클러스터 HUD 패널 배치", "0: 왼쪽 / 1: 오른쪽",
+      "클러스터 HUD 패널 배치", "0: 주행 왼쪽 / 1: 주행 오른쪽",
       "../assets/offroad/icon_road.png", 0, 1, 1, 0, 0, this));
+  list->addItem(new ParamValueControlF("EonClusterHudScreenMode",
+      "클러스터 HUD 화면 모드", "0: 자동(내비/주행리포트) / 2: 시스템 상태 / 5: 주행리포트 고정",
+      "../assets/offroad/icon_road.png", 0, 5, 1, 0, 0, this));
+  list->addItem(new ParamValueControlF("EonClusterHudTheme",
+      "클러스터 HUD 테마", "0: 자동 / 1: 다크 / 2: 라이트. 주행리포트와 시스템 패널에 적용됩니다.",
+      "../assets/offroad/icon_road.png", 0, 2, 1, 0, 0, this));
 
   list->addItem(horizontal_line());
 

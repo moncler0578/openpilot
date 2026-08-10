@@ -325,13 +325,50 @@ class HudRenderer(object):
       draw.text((left + 32, bottom - 39), remain, font=_font(max(16, self.height // 20), True),
                 fill=(205, 215, 222), anchor="lm")
 
-  def _draw_trip_report(self, draw, box, report):
+  def _theme_colors(self, theme):
+    # carrot-wip compatible simple theme mapping: 0 auto(default dark), 1 dark, 2 light.
+    if int(theme or 0) == 2:
+      return {"bg": (235, 239, 243), "card": (250, 251, 252), "line": (180, 188, 196),
+              "primary": (25, 31, 38), "secondary": (90, 102, 114), "accent": (32, 123, 214)}
+    return {"bg": (7, 12, 18), "card": (16, 23, 32), "line": (55, 68, 80),
+            "primary": (235, 240, 245), "secondary": (145, 158, 168), "accent": (64, 181, 255)}
+
+  def _draw_system_panel(self, draw, box, system, theme=0):
+    colors = self._theme_colors(theme)
     left, top, right, bottom = box
-    draw.rectangle(box, fill=(7, 12, 18))
+    draw.rectangle(box, fill=colors["bg"])
+    draw.text(((left + right) // 2, top + 38), "SYSTEM",
+              font=_font(max(24, self.height // 12), True), fill=colors["primary"], anchor="mm")
+    metrics = (("CPU", float(system.get("cpu", 0.0) or 0.0), "%"),
+               ("TEMP", float(system.get("temp", 0.0) or 0.0), " C"),
+               ("MEM", float(system.get("memory", 0.0) or 0.0), "%"),
+               ("DISK", float(system.get("disk", 0.0) or 0.0), "%"))
+    card_w = max(1, (right - left - 66) // 2)
+    card_h = max(62, (bottom - top - 150) // 2)
+    for i, (label, value, unit) in enumerate(metrics):
+      col, row = i % 2, i // 2
+      x0 = left + 22 + col * (card_w + 22)
+      y0 = top + 72 + row * (card_h + 18)
+      x1, y1 = x0 + card_w, min(bottom - 18, y0 + card_h)
+      draw.rounded_rectangle((x0, y0, x1, y1), radius=14, fill=colors["card"], outline=colors["line"], width=2)
+      draw.text((x0 + 14, y0 + 16), label, font=_font(max(16, self.height // 24), True), fill=colors["secondary"], anchor="la")
+      text = ("%.0f" % value) + unit
+      draw.text(((x0 + x1) // 2, (y0 + y1) // 2 + 10), text,
+                font=_font(max(26, self.height // 10), True), fill=colors["primary"], anchor="mm")
+    cores = system.get("cores") or []
+    if cores:
+      core_text = "  ".join("C%d %.0f%%" % (i, float(v)) for i, v in enumerate(cores))
+      draw.text(((left + right) // 2, bottom - 13), core_text,
+                font=_font(max(12, self.height // 30)), fill=colors["secondary"], anchor="ms")
+
+  def _draw_trip_report(self, draw, box, report, theme=0):
+    colors = self._theme_colors(theme)
+    left, top, right, bottom = box
+    draw.rectangle(box, fill=colors["bg"])
     title_size = max(24, self.height // 12)
     body_size = max(19, self.height // 18)
     draw.text(((left + right) // 2, top + 42), "DRIVING REPORT",
-              font=_font(title_size, True), fill=(235, 240, 245), anchor="mm")
+              font=_font(title_size, True), fill=colors["primary"], anchor="mm")
     duration_s = max(0.0, float(report.get("duration_s", 0.0) or 0.0))
     distance_km = max(0.0, float(report.get("distance_m", 0.0) or 0.0)) / 1000.0
     rows = (
@@ -345,11 +382,11 @@ class HudRenderer(object):
     for index, (label, value) in enumerate(rows):
       row_top = top + 72 + index * row_h
       draw.rounded_rectangle((card_left, row_top, card_right, row_top + row_h - 8), radius=12,
-                             fill=(16, 23, 32), outline=(55, 68, 80), width=2)
+                             fill=colors["card"], outline=colors["line"], width=2)
       draw.text((card_left + 18, row_top + (row_h - 8) // 2), label,
-                font=_font(body_size, True), fill=(145, 158, 168), anchor="lm")
+                font=_font(body_size, True), fill=colors["secondary"], anchor="lm")
       draw.text((card_right - 18, row_top + (row_h - 8) // 2), value,
-                font=_font(body_size, True), fill=(235, 240, 245), anchor="rm")
+                font=_font(body_size, True), fill=colors["primary"], anchor="rm")
 
   def render(self, speed_kph, cruise_kph, enabled, navi=None, scene=None):
     navi = navi or {}
@@ -373,8 +410,15 @@ class HudRenderer(object):
       draw.rectangle((split - 3, 0, split + 3, self.height), fill=(34, 42, 50))
     else:
       draw.rectangle((divider - 3, 0, divider + 3, self.height), fill=(34, 42, 50))
-    if scene.get("parked") and scene.get("trip_report"):
-      self._draw_trip_report(draw, info_box, scene["trip_report"])
+    screen_mode = int(scene.get("screen_mode", 0) or 0)
+    theme = int(scene.get("theme", 0) or 0)
+    if screen_mode == 2:
+      self._draw_system_panel(draw, info_box, scene.get("system") or {}, theme)
+    elif screen_mode == 5:
+      self._draw_trip_report(draw, info_box, scene.get("trip_report") or {}, theme)
+    elif not navi and scene.get("trip_report"):
+      # carrot-wip mode 0 behavior: live navigation when available, otherwise driving report.
+      self._draw_trip_report(draw, info_box, scene["trip_report"], theme)
     else:
       self._draw_navi_panel(image, draw, info_box, navi)
     self._draw_alert(draw, scene.get("alert"))
