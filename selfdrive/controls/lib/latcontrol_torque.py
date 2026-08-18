@@ -131,26 +131,23 @@ class LatControlTorque(LatControl):
 
   def read_torque_params(self, force=False):
     custom = int(self._pget("LateralTorqueCustom", 0))
-    auto_tune = self.params.get_bool("CarrotLearningActive") and self.params.get_bool("CarrotTunerApplyLat")
-    mode = 2 if custom > 0 else (1 if auto_tune else 0)
-    prev_mode = getattr(self, "lateral_torque_mode", 0)
 
-    if mode > 0:
-      # Manual custom has priority, otherwise Phase2 uses the same Params surface.
-      self.torque_params.latAccelFactor = self._pget("LateralTorqueAccelFactor", 2500) * 0.001
-      self.torque_params.friction = self._pget("LateralTorqueFriction", 10) * 0.001
-      self.pid._k_p = [[0], [self._pget("LateralTorqueKpV", 70) * 0.01]]
-      self.pid._k_i = [[0], [self._pget("LateralTorqueKiV", 20) * 0.01]]
-      self.pid.k_f = self._pget("LateralTorqueKf", 85) * 0.01
+    if custom > 0:
+      # Apply the manually configured torque parameters.
+      self.torque_params.latAccelFactor = self._pget("LateralTorqueAccelFactor", 2700) * 0.001
+      self.torque_params.friction = self._pget("LateralTorqueFriction", 80) * 0.001
+      self.pid._k_p = [[0], [self._pget("LateralTorqueKpV", 10) * 0.01]]
+      self.pid._k_i = [[0], [self._pget("LateralTorqueKiV", 10) * 0.01]]
+      self.pid.k_f = self._pget("LateralTorqueKf", 100) * 0.01
       self.pid._k_d = [[0], [self._pget("LateralTorqueKd", 0) * 0.01]]
-    elif prev_mode > 0 or force:
+    elif self.lateral_torque_custom > 0 or force:
+      # 커스텀을 끄면 차량 기본값으로 복귀
       self.torque_params.latAccelFactor = self.latAccelFactor_default
       self.torque_params.friction = self.friction_default
       self.pid._k_p = [[0], [self.kp_default]]
       self.pid._k_i = [[0], [self.ki_default]]
       self.pid.k_f = self.kf_default
       self.pid._k_d = [[0], [self.kd_default]]
-    self.lateral_torque_mode = mode
     self.lateral_torque_custom = custom
 
     self.lat_accel_friction_factor = self._pget("LatAccelFrictionFactor", 70) * 0.01
@@ -164,12 +161,21 @@ class LatControlTorque(LatControl):
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     # Manual override (LateralTorqueCustom) always wins -- don't let torqued's
     # live-learned values fight read_torque_params() every frame.
-    auto_tune = self.params.get_bool("CarrotLearningActive") and self.params.get_bool("CarrotTunerApplyLat")
-    if self.lateral_torque_custom > 0 or auto_tune:
+    if self.lateral_torque_custom > 0:
       return
-    self.torque_params.latAccelFactor = latAccelFactor
-    self.torque_params.latAccelOffset = latAccelOffset
-    self.torque_params.friction = friction
+    # Ramp toward the incoming value instead of snapping to it in one frame.
+    # torqued.py's own FirstOrderFilter already smooths its output over time,
+    # but that smoothing resets at every process restart (e.g. a value
+    # restored from the on-disk cache is applied to .x directly, with no
+    # ramp-up from the vehicle's calibrated default). This second, independent
+    # ramp here (~2s time constant at 100Hz) is a deliberate belt-and-suspenders
+    # layer so a stale/bad cached or newly-computed value can never apply as a
+    # step change at the moment steering re-engages -- added 2026-08-18 after
+    # a real-car MDPS fault traced to an abrupt learned-friction change.
+    ramp_alpha = 0.005  # ~2s to fully catch up to a new target at 100Hz
+    self.torque_params.latAccelFactor += (latAccelFactor - self.torque_params.latAccelFactor) * ramp_alpha
+    self.torque_params.latAccelOffset += (latAccelOffset - self.torque_params.latAccelOffset) * ramp_alpha
+    self.torque_params.friction += (friction - self.torque_params.friction) * ramp_alpha
 
   def _update_curve_state(self, desired_curvature):
     """요구곡률 크기를 비대칭 필터로 추종해 커브/직진 강도(0~1)를 만든다."""

@@ -8,8 +8,9 @@ adapted to this (older, pre-livePose/carOutput) fork:
     calibratedOrientationNED / angularVelocityCalibrated are already in the
     vehicle-aligned calibrated frame, same fields latcontrol_torque.py already
     reads via `llk`).
-  - uses `carState.steeringTorqueEps` instead of a separate `carOutput` message
-    (this fork has no carOutput split).
+  - uses `carControl.actuatorsOutput.steer` instead of a separate `carOutput`
+    message (this fork has no carOutput split -- actuatorsOutput lives inside
+    carControl instead, populated in controlsd.py).
   - uses a fixed lag (CP.steerActuatorDelay) instead of a live `liveDelay`
     estimator (this fork has no locationd liveDelay process).
   - PointBuckets/ParameterEstimator base classes inlined here since this fork's
@@ -22,6 +23,21 @@ NOTE: this only changes the *live-learning* torque parameters. It does not
 touch the manual "LateralTorqueCustom" override path, which still takes
 priority whenever it's enabled (read_torque_params() in latcontrol_torque.py
 early-returns to the manual values in that case).
+
+SAFETY HISTORY (2026-08-18): the first version of this file used
+`carState.steeringTorqueEps` (physical Nm, per this car's DBC scaling) as the
+learning signal instead of the actuator command (normalized [-1, 1]) -- a
+genuine units mismatch. Combined with restoring a previously-cached filtered
+value directly (instant step, no ramp-in) on process start, a driver reported
+an immediate MDPS fault on real hardware right after a drive where this was
+active. Fixed by: (1) switching to `actuatorsOutput.steer`, (2) never
+restoring the cached *filtered* value or decay -- only cached raw points are
+kept, so every start re-earns its way to a learned value instead of snapping
+to one, (3) an independent ~2s ramp in
+LatControlTorque.update_live_torque_params() as a second line of defense,
+(4) tightening FRICTION_SANITY, and (5) making the whole feature opt-in via
+live_tune.live_torque_enabled() / the "LiveTorqueEnabled" Params key
+(default off) instead of always-on.
 """
 import os
 import time
@@ -44,7 +60,11 @@ FIT_POINTS_TOTAL = 2000
 MIN_VEL = 15  # m/s
 FRICTION_FACTOR = 1.5  # ~85% of data coverage
 FACTOR_SANITY = 0.3
-FRICTION_SANITY = 0.5
+# Tightened from the upstream default of 0.5 (i.e. friction could swing up to
+# +150% of the vehicle's calibrated default) after a real-car MDPS fault on
+# this low-margin, poorly-supported platform (Genesis DH 2015-2016) traced to
+# an abrupt learned-friction change -- 2026-08-18.
+FRICTION_SANITY = 0.3
 STEER_MIN_THRESHOLD = 0.02
 MIN_FILTER_DECAY = 50
 MAX_FILTER_DECAY = 250
@@ -148,8 +168,20 @@ class TorqueEstimator:
     self.min_friction = (1.0 - self.friction_sanity) * self.offline_friction
     self.max_friction = (1.0 + self.friction_sanity) * self.offline_friction
 
-    # try to restore cached params (guarded by carFingerprint match, no
-    # separate CarParamsPrevRoute key needed -- see module docstring)
+    # Restore cached *points* only -- never the cached filtered latAccelFactor/
+    # latAccelOffset/frictionCoefficient, and never the cached decay.
+    # filtered_params below always starts from the vehicle's calibrated
+    # defaults (offline_latAccelFactor/offline_friction/0.0) with a fresh,
+    # fast-reacting decay, so every process start (including right after a
+    # park stop, which restarts nothing in this fork, but covers any future
+    # restart/reboot case) re-earns its way to the learned value instead of
+    # snapping straight to whatever was last cached. Combined with the
+    # ramp in LatControlTorque.update_live_torque_params(), a stale or bad
+    # cached point set can, at worst, bias how fast estimate_params() moves
+    # things over the following minute -- it can no longer apply instantly.
+    # (Fixed 2026-08-18 after a real-car MDPS fault traced to an abrupt
+    # learned-friction change; the previous version set filtered_params['x']
+    # and self.decay directly from the cache here.)
     params = Params()
     torque_cache = params.get("LiveTorqueParameters")
     if torque_cache is not None:
@@ -157,18 +189,11 @@ class TorqueEstimator:
         with log.Event.from_bytes(torque_cache) as log_evt:
           cache_ltp = log_evt.liveTorqueParameters
         if cache_ltp.carFingerprint == CP.carFingerprint and cache_ltp.version == VERSION:
-          if cache_ltp.liveValid:
-            initial_params = {
-              'latAccelFactor': cache_ltp.latAccelFactorFiltered,
-              'latAccelOffset': cache_ltp.latAccelOffsetFiltered,
-              'frictionCoefficient': cache_ltp.frictionCoefficientFiltered,
-            }
           initial_params['points'] = cache_ltp.points
-          self.decay = cache_ltp.decay
           self.filtered_points.load_points(initial_params['points'])
-          cloudlog.info("torqued: restored live torque params from cache")
+          cloudlog.info("torqued: restored cached points only (not filtered values/decay)")
       except Exception:
-        cloudlog.exception("torqued: failed to restore cached torque params")
+        cloudlog.exception("torqued: failed to restore cached torque points")
         params.remove("LiveTorqueParameters")
 
     self.filtered_params = {}
@@ -209,14 +234,25 @@ class TorqueEstimator:
     if which == "carControl":
       self.raw_points["carControl_t"].append(t + self.lag)
       self.raw_points["lat_active"].append(bool(msg.latActive))
+      # No separate carOutput message in this fork -- carControl.actuatorsOutput
+      # is the equivalent field ("Any car specific rate limits or quirks
+      # applied by the CarController are reflected in actuatorsOutput and
+      # matches what is sent to the car" per car.capnp, populated in
+      # controlsd.py as `CC.actuatorsOutput = self.last_actuators`). .steer is
+      # normalized to [-1, 1] (LatControl.steer_max stays 1.0 for
+      # LatControlTorque in this fork; it's never overridden to the car's raw
+      # CAN torque scale) -- the same sign/units convention latAccelFactor/
+      # friction are calibrated against.
+      # NOTE: this fork previously used carState.steeringTorqueEps here, which
+      # is actually physical Nm (see carstate.py: "CR_Mdps_OutTq / 10 # scale to
+      # Nm") -- a real units mismatch, fixed 2026-08-18 after a real-car MDPS
+      # fault traced to a bad learned friction value.
+      self.raw_points["steer_torque_t"].append(t + self.lag)
+      self.raw_points["steer_torque"].append(-msg.actuatorsOutput.steer)
     elif which == "carState":
       self.raw_points["carState_t"].append(t + self.lag)
       self.raw_points["vego"].append(msg.vEgo)
       self.raw_points["steer_override"].append(bool(msg.steeringPressed))
-      # No separate carOutput message in this fork -- steeringTorqueEps is the
-      # commanded/actual EPS torque as reported back on the CAN bus.
-      self.raw_points["steer_torque_t"].append(t + self.lag)
-      self.raw_points["steer_torque"].append(-msg.steeringTorqueEps)
     elif which == "liveLocationKalman":
       if len(self.raw_points['steer_torque']) == 0 or len(self.raw_points['carState_t']) < 2:
         return
@@ -279,10 +315,7 @@ class TorqueEstimator:
 
 
 def main():
-  # 이 포크의 set_core_affinity 는 int 하나만 받는다(os.sched_setaffinity(0, [core,])).
-  # 상위 브랜치처럼 리스트를 넘기면 EON 에서 TypeError 로 즉사한다.
-  # controlsd=3, plannerd/radard=2 를 피해 1 번 코어 사용.
-  config_realtime_process(1, 5)
+  config_realtime_process([0, 1, 2, 3], 5)
 
   DEBUG = bool(int(os.getenv("DEBUG", "0")))
 

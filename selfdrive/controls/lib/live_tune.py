@@ -39,6 +39,7 @@ def custom_steer_ratio():
   return _get("CustomSteerRatio", 1650.0) * 0.01
 
 
-def steer_ratio_rate():
-  """CarrotLearning Phase2 steer-ratio multiplier."""
-  return max(0.5, min(1.5, _get("SteerRatioRate", 100.0) * 0.01))
+def live_torque_enabled():
+  """LiveTorque(torqued.py) 자동학습값을 실제 조향에 반영할지 여부. 기본 꺼짐 --
+  2026-08-18 MDPS 폴트 리포트 이후 opt-in으로 전환."""
+  return _get("LiveTorqueEnabled", 0.0) > 0.5

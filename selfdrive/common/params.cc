@@ -223,7 +223,6 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"LaneChangeEnabled", PERSISTENT},
     {"AutoLaneChangeEnabled", PERSISTENT},
     {"OffsetTotal", PERSISTENT},
-    {"PathOffset", PERSISTENT},              // CarrotLearning Phase2, cm units (-30..30)
     {"AdjustLaneOffset", PERSISTENT},          // 좌우 여유공간 비대칭 보정 (cm, 0=off)     // 통합 오프셋(offset_total). 전 모드 공통, Auto-Tuner Phase2 학습 대상
     {"SccSmootherState", PERSISTENT},
     {"SccSmootherSyncGasPressed", PERSISTENT},
@@ -269,7 +268,6 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"ShowPlotMode", PERSISTENT},                // 0=off, 1..8=C3 driving analysis plot
     {"CustomSteerRatio", PERSISTENT},          // 고정 조향비 x100
     {"UseLiveSteerRatio", PERSISTENT},         // 1=liveParameters 학습 조향비 사용
-    {"SteerRatioRate", PERSISTENT},            // CarrotLearning Phase2 steer-ratio multiplier (%)
     {"SteerActuatorDelay", PERSISTENT},        // 조향 지연 보상 x100 (초)
     {"LateralTorqueCustom", PERSISTENT},       // 1=아래 토크값 사용, 0=차량 기본값
     {"LateralTorqueAccelFactor", PERSISTENT},  // latAccelFactor x1000
@@ -281,6 +279,7 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"LatAccelFrictionFactor", PERSISTENT},    // friction 입력 횡가속 비율 x100
     {"LatJerkFrictionFactor", PERSISTENT},     // friction 입력 횡저크 비율 x100
     // ── LiveTorque self-learning (backport from ajouatom/openpilot hoya/c3-atune) ──
+    {"LiveTorqueEnabled", PERSISTENT},         // 1=학습값을 실제 조향에 반영, 0=학습만 하고 미반영 (기본 0)
     {"LiveTorqueParameters", PERSISTENT},      // torqued.py가 주기적으로 캐싱하는 학습값 (serialized Event bytes)
     {"ShowBlindSpotAlways", PERSISTENT},       // BSD 벽 상시표시 (진단용, 0=감지시만)         // 기어 변경 팝업 애니메이션
     {"KeepSteeringTurnSignals", PERSISTENT},
@@ -299,6 +298,9 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"CarrotLearningRecommend", PERSISTENT},   // 추천값 (JSON)
     {"CarrotLearningHistory", PERSISTENT},     // 적용 이력 (JSON, 최대 50)
     {"CarrotLearningPopupReady", PERSISTENT},  // 추천 준비 신호
+    {"CarrotLearningApplyNow", PERSISTENT},    // 팝업에서 "적용" 선택 시 1 -- carrot_lat_learning.py가
+                                                // 감지해 실제 Params 반영 + 누적 카운터 리셋을 수행한다
+                                                // (실제 적용 로직은 UI가 아니라 여기 한 곳에만 있음)
     {"CarrotLearningPopupSource", PERSISTENT}, // 추천 발생 소스 ("parking")
     {"CarrotLearningClear", PERSISTENT},       // 학습 데이터 초기화 신호
     {"CarrotTunerFactoryReset", PERSISTENT},   // 공장초기화 신호 (commit e06a7dd): UI→onroad 학습기 재동기화

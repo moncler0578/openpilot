@@ -122,7 +122,6 @@ def manager_init() -> None:
     ("CruiseMaxVals6", "60"),
     ("CustomSteerRatio", "1650"),
     ("UseLiveSteerRatio", "0"),
-    ("SteerRatioRate", "100"),
     ("SteerActuatorDelay", "50"),
     ("LateralTorqueCustom", "0"),
     ("LateralTorqueAccelFactor", "2500"),
@@ -133,6 +132,8 @@ def manager_init() -> None:
     ("LateralTorqueKd", "0"),
     ("LatAccelFrictionFactor", "70"),
     ("LatJerkFrictionFactor", "40"),
+    # LiveTorque 자동학습 -- 기본은 꺼둠 (2026-08-18 MDPS 폴트 리포트 이후 opt-in으로 전환)
+    ("LiveTorqueEnabled", "0"),
     # CarrotLatLearner (조향 학습 추천) -- 기본은 꺼둠, 안전하게 몇 번 확인 후 켜는 걸 권장
     ("CarrotLearningActive", "0"),
     ("CarrotTunerApplyLat", "1"),
@@ -140,8 +141,7 @@ def manager_init() -> None:
     ("AutoLaneChangeTimer", "0"),  # controlsd.py 크래시 수정
     ("AutoLaneChangeSpeed", "50"),  # 자동/방향지시등 차선변경 허용 최저 속도 (km/h)
     ("AdjustLaneOffset", "0"),    # 좌우 여유공간 비대칭 보정 (cm, 0=off)
-    ("OffsetTotal", "0.0"),        # 사용자 수동 오프셋(m)
-    ("PathOffset", "0"),            # CarrotLearning Phase2 자동 중심보정(cm)
+    ("OffsetTotal", "0.0"),        # 통합 오프셋(offset_total), 전 모드 공통 적용
     ("TurnVisionControl", "0"),
     ("AutoCurveSpeedFactor", "120"),
     ("AutoCurveSpeedLowerLimit", "30"),
