@@ -1,0 +1,17 @@
+plugins { id "com.android.application" }
+
+android {
+  namespace "ai.comma.remotehud"
+  compileSdk 35
+  defaultConfig {
+    applicationId "ai.comma.remotehud"
+    minSdk 26
+    targetSdk 35
+    versionCode 43
+    versionName "0.27-final-mpc-path"
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_11
+    targetCompatibility JavaVersion.VERSION_11
+  }
+}

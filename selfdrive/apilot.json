@@ -1,0 +1,1295 @@
+{
+ "apilot": "g_abcd",
+ "params": [
+  {
+   "group": "\uae30\ubcf8",
+   "name": "OpenpilotEnabledToggle",
+   "title": "\uc624\ud508\ud30c\uc77c\ub7ff \uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: \ucc28\uac04\uac70\ub9ac\u00b7\uc18d\ub3c4 \ubc0f \ucc28\uc120\uc720\uc9c0 \ubcf4\uc870\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ud56d\uc0c1 \uc804\ubc29\uc744 \uc8fc\uc2dc\ud574\uc57c \ud558\uba70 \uc124\uc815\uc740 \ucc28\ub7c9 \uc804\uc6d0\uc774 \uaebc\uc9c4 \ub4a4 \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "IsLdwEnabled",
+   "title": "\ucc28\uc120\uc774\ud0c8 \uacbd\uace0 \uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: 50km/h \uc774\uc0c1\uc5d0\uc11c \ubc29\ud5a5\uc9c0\uc2dc\ub4f1 \uc5c6\uc774 \ucc28\uc120\uc744 \ubc97\uc5b4\ub098\uba74 \uacbd\uace0\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "IsMetric",
+   "title": "\ubbf8\ud130\ubc95 \uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: \uc18d\ub3c4\ub97c km/h\ub85c \ud45c\uc2dc / \uaebc\uc9d0: mph\ub85c \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "UseClusterSpeed",
+   "title": "\uc81c\uc5b4\uc18d\ub3c4\uc5d0 \uacc4\uae30\ud310 \uc18d\ub3c4 \uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: \uc81c\uc5b4\uc6a9 \ucc28\ub7c9\uc18d\ub3c4\ub97c \uacc4\uae30\ud310 \uc18d\ub3c4\ub85c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. / \uaebc\uc9d0(\uad8c\uc7a5): \ud720 \uc18d\ub3c4\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ubcc0\uacbd \ud6c4 \ub2e4\uc74c \uc8fc\ud589\ubd80\ud130 \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "RecordFront",
+   "title": "\uc6b4\uc804\uc790 \uce74\uba54\ub77c \ub179\ud654\u00b7\uc5c5\ub85c\ub4dc",
+   "descr": "\ucf1c\uc9d0: \uc6b4\uc804\uc790 \ubaa8\ub2c8\ud130\ub9c1 \uac1c\uc120\uc744 \uc704\ud574 \uc2e4\ub0b4 \uce74\uba54\ub77c \uc601\uc0c1\uc744 \ub179\ud654\ud558\uace0 \uc5c5\ub85c\ub4dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "ExperimentalMode",
+   "title": "\uc2e4\ud5d8\ubaa8\ub4dc",
+   "descr": "\ucf1c\uc9d0: E2E \uc885\ubc29\ud5a5 \uc81c\uc5b4 \ub4f1 \uc54c\ud30c \uc218\uc900 \uae30\ub2a5\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \uc2dc\ud5d8 \uae30\ub2a5\uc774\ubbc0\ub85c \uc548\uc804 \uacbd\uace0\ub97c \ud655\uc778\ud558\uc2ed\uc2dc\uc624.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "ExperimentalLongitudinalEnabled",
+   "title": "\uc624\ud508\ud30c\uc77c\ub7ff \uc2e4\ud5d8 \uc885\ubc29\ud5a5 \uc81c\uc5b4",
+   "descr": "<b>\uc8fc\uc758: \uc774 \ucc28\ub7c9\uc758 \uc885\ubc29\ud5a5 \uc81c\uc5b4\ub294 \uc2dc\ud5d8 \uae30\ub2a5\uc774\uba70 \uc21c\uc815 AEB\uac00 \ube44\ud65c\uc131\ud654\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4.</b><br>\n          \ucf1c\uc9d0: \uc21c\uc815 ACC \ub300\uc2e0 \uc624\ud508\ud30c\uc77c\ub7ff\uc774 \uac00\uc18d\uacfc \uc81c\ub3d9\uc744 \uc81c\uc5b4\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uae30\ubcf8",
+   "name": "NavSettingTime24h",
+   "title": "24\uc2dc\uac04 \ud615\uc2dd \uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: \ub3c4\ucc29\uc608\uc815\uc2dc\uac04\uc744 24\uc2dc\uac04\uc81c\ub85c \ud45c\uc2dc / \uaebc\uc9d0: \uc624\uc804\u00b7\uc624\ud6c4 \ud615\uc2dd\uc73c\ub85c \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeedMin",
+   "title": "\ucd5c\uc800 \uc124\uc815\uc18d\ub3c4 (km/h)",
+   "descr": "\ub871\ucee8\uc758 \ucd5c\uc800 \uc124\uc815\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucc98\uc74c \uc124\uc815\ub418\ub294 \uc18d\ub3c4\uac00 \ub192\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ub354 \ub0ae\uc740 \uc18d\ub3c4\ub85c \uc124\uc815 \uac00\ub2a5.",
+   "min": 5,
+   "max": 30,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "SpeedFromPCM",
+   "title": "\ud06c\ub8e8\uc988 \uc124\uc815\uc18d\ub3c4 \uae30\uc900",
+   "descr": "1: \uc21c\uc815 SCC \uc124\uc815\uc18d\ub3c4 \uc0ac\uc6a9 / 2: \uc624\ud508\ud30c\uc77c\ub7ff \uc124\uc815\uc18d\ub3c4\uc640 \uc0ac\uc6a9\uc790 \ud06c\ub8e8\uc988 \ubc84\ud2bc \uc124\uc815 \uc0ac\uc6a9.",
+   "min": 1,
+   "max": 2,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoGasTokSpeed",
+   "title": "\uac00\uc18d\ud398\ub2ec \uc790\ub3d9\uc7ac\uac1c \uc18d\ub3c4 (km/h)",
+   "descr": "\uac00\uc18d\ud398\ub2ec \ud574\uc81c \ud6c4 \uc790\ub3d9\uc7ac\uac1c\uac00 \uac00\ub2a5\ud55c \ucd5c\uc800\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ub192\uc740 \uc18d\ub3c4\uc5d0\uc11c\ub9cc \uc7ac\uac1c / \uac12 \uac10\uc18c(-): \uc800\uc18d\uc5d0\uc11c\ub3c4 \uc7ac\uac1c.",
+   "min": 5,
+   "max": 60,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoGasCancelSpeed",
+   "title": "\uac00\uc18d\ud398\ub2ec \ud574\uc81c \ucde8\uc18c\uc18d\ub3c4 (km/h)",
+   "descr": "\uc774 \uc18d\ub3c4 \ubbf8\ub9cc\uc5d0\uc11c\ub294 \uac00\uc18d\ud398\ub2ec \ud574\uc81c \uc790\ub3d9\uc7ac\uac1c\ub97c \ucde8\uc18c\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc790\ub3d9\uc7ac\uac1c \uc870\uac74\uc774 \uc5c4\uaca9\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \uc800\uc18d \uc7ac\uac1c\uac00 \uc26c\uc6cc\uc9d0.",
+   "min": 0,
+   "max": 60,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseButtonMode",
+   "title": "\ud06c\ub8e8\uc988 \ubc84\ud2bc \ubaa8\ub4dc",
+   "descr": "0: \uae30\ubcf8 \uc99d\uac10 / 1: RES\u00b7SET \uc0ac\uc6a9\uc790 \ub2e8\uc704 / 2: SET\uc73c\ub85c \ud604\uc7ac\uc18d\ub3c4 \ub3d9\uae30\ud654 / 3: RES\ub85c \uc9c0\uc815\uc18d\ub3c4\ud45c \uc21c\ud658.",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeedUnit",
+   "title": "\ud06c\ub8e8\uc988 \uc0ac\uc6a9\uc790 \uc99d\uac10\ub2e8\uc704 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 1~3\uc758 \uc18d\ub3c4 \uc99d\uac10 \ub2e8\uc704\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud55c \ubc88\uc5d0 \uc18d\ub3c4\uac00 \ud06c\uac8c \ubcc0\ud568 / \uac12 \uac10\uc18c(-): \uc138\ubc00\ud558\uac8c \ubcc0\ud568.",
+   "min": 1,
+   "max": 20,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeedUnitBasic",
+   "title": "\ud06c\ub8e8\uc988 \uae30\ubcf8 \uc99d\uac10\ub2e8\uc704 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 0\uc5d0\uc11c \uc9e7\uac8c \ub204\ub97c \ub54c\uc758 \uc99d\uac10 \ub2e8\uc704\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud070 \ud3ed\uc73c\ub85c \ubcc0\uacbd / \uac12 \uac10\uc18c(-): \uc791\uc740 \ud3ed\uc73c\ub85c \ubcc0\uacbd.",
+   "min": 1,
+   "max": 10,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseButtonLongDelay",
+   "title": "\ud06c\ub8e8\uc988 \ubc84\ud2bc \uae38\uac8c\ub204\ub984 \uc2dc\uac04",
+   "descr": "RES/SET \uae38\uac8c\ub204\ub984 \ud310\uc815\uc2dc\uac04(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \uc624\ub798 \ub20c\ub7ec\uc57c \uc791\ub3d9 / \uac12 \uac10\uc18c(-): \ube60\ub974\uac8c \uae38\uac8c\ub204\ub984\uc73c\ub85c \ud310\uc815.",
+   "min": 30,
+   "max": 150,
+   "default": 40,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoSpeedUptoRoadSpeedLimit",
+   "title": "\uc55e\ucc28 \uc790\ub3d9\uc99d\uc18d \ub3c4\ub85c\uc18d\ub3c4 \ube44\uc728 (%)",
+   "descr": "\uc55e\ucc28\ub97c \ub530\ub77c \uc124\uc815\uc18d\ub3c4\ub97c \uc62c\ub9b4 \uc218 \uc788\ub294 \ub3c4\ub85c \uc81c\ud55c\uc18d\ub3c4 \ube44\uc728\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ub192\uc740 \uc18d\ub3c4\uae4c\uc9c0 \uc99d\uc18d / \uac12 \uac10\uc18c(-): \uc99d\uc18d \uc0c1\ud55c\uc774 \ub0ae\uc544\uc9d0 / 0: \ub054.",
+   "min": 0,
+   "max": 120,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoRoadSpeedAdjust",
+   "title": "\ub3c4\ub85c \uc81c\ud55c\uc18d\ub3c4 \ubcc0\uacbd \ubc18\uc601\ub960 (%)",
+   "descr": "0: \uc124\uc815\uc18d\ub3c4 \uc720\uc9c0 / +\uac12 \uc99d\uac00: \uc81c\ud55c\uc18d\ub3c4 \ud558\ub77d\uc744 \ub354 \ub9ce\uc774 \ubc18\uc601 / +\uac12 \uac10\uc18c: \ucc9c\ucc9c\ud788 \ubc18\uc601 / \uc74c\uc218: \uc0c8 \uc81c\ud55c\uc18d\ub3c4\ub85c \uc989\uc2dc \ubcc0\uacbd.",
+   "min": -100,
+   "max": 100,
+   "default": 0,
+   "unit": 10
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoRoadSpeedLimitOffset",
+   "title": "\ub3c4\ub85c \uc81c\ud55c\uc18d\ub3c4 \uc624\ud504\uc14b (km/h)",
+   "descr": "\ub3c4\ub85c \uc81c\ud55c\uc18d\ub3c4\uc5d0 \ub354\ud558\ub294 \uac12\uc785\ub2c8\ub2e4. \uc591\uc218(+): \uc81c\ud55c\uc18d\ub3c4\ubcf4\ub2e4 \ub192\uac8c \uc124\uc815 / \uc74c\uc218(-): \uc81c\ud55c\uc18d\ub3c4\ubcf4\ub2e4 \ub0ae\uac8c \uc124\uc815.",
+   "min": -30,
+   "max": 30,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoNaviSpeedSafetyFactor",
+   "title": "\ub0b4\ube44 \uac10\uc18d \uc548\uc804\ube44\uc728 (%)",
+   "descr": "\uce74\uba54\ub77c\u00b7\uad6c\uac04\ub2e8\uc18d \ubaa9\ud45c\uc18d\ub3c4 \ube44\uc728\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ubaa9\ud45c\uc18d\ub3c4\uac00 \ub192\uc544\uc838 \uac10\uc18d\uc774 \uc904\uc5b4\ub4e6 / \uac12 \uac10\uc18c(-): \ub354 \ub0ae\uac8c \uac10\uc18d / 100: \uc6d0\ub798 \uc18d\ub3c4.",
+   "min": 80,
+   "max": 120,
+   "default": 105,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoResumeFromGas",
+   "title": "\uac00\uc18d\ud398\ub2ec \uc624\ud1a0\ub9ac\uc90c \ubaa8\ub4dc",
+   "descr": "0: \ub054 / 1: \uc870\uac74 \ucda9\uc871 \uc2dc \uc7ac\uac1c / 2: \uc870\uac74 \ucda9\uc871 \ub610\ub294 0.4\ucd08 \ubbf8\ub9cc\uc758 \uc9e7\uc740 \uac00\uc18d \ud6c4 \uc7ac\uac1c.",
+   "min": 0,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoResumeFromGasSpeedMode",
+   "title": "\uc624\ud1a0\ub9ac\uc90c \uc124\uc815\uc18d\ub3c4 \ubaa8\ub4dc",
+   "descr": "0: \ud604\uc7ac \ucc28\ub7c9\uc18d\ub3c4\ub85c \uc7ac\uac1c / 1: \uc774\uc804 \uc124\uc815\uc18d\ub3c4\ub85c \uc7ac\uac1c / 2: \uc55e\ucc28\uac00 \uc788\uc744 \ub54c\ub9cc \uc774\uc804 \uc124\uc815\uc18d\ub3c4\ub85c \uc7ac\uac1c.",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoResumeFromBrakeCarSpeed",
+   "title": "\ube0c\ub808\uc774\ud06c \ud574\uc81c \uc7ac\uac1c\uc18d\ub3c4 (km/h)",
+   "descr": "\uc55e\ucc28\uac00 \uc5c6\uc744 \ub54c \ud544\uc694\ud55c \ucd5c\uc800 \uc7ac\uac1c\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ub192\uc740 \uc18d\ub3c4\uc5d0\uc11c\ub9cc \uc7ac\uac1c / \uac12 \uac10\uc18c(-): \uc800\uc18d\uc5d0\uc11c\ub3c4 \uc7ac\uac1c.",
+   "min": 5,
+   "max": 60,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoResumeFromBrakeReleaseDist",
+   "title": "\ube0c\ub808\uc774\ud06c \ud574\uc81c \uc55e\ucc28\uac70\ub9ac (m)",
+   "descr": "\ube0c\ub808\uc774\ud06c \ud574\uc81c \uc7ac\uac1c\uc5d0 \ud544\uc694\ud55c \uc55e\ucc28 \uac70\ub9ac\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc55e\ucc28\uac00 \ub354 \uba40\uc5b4\uc57c \uc7ac\uac1c / \uac12 \uac10\uc18c(-): \uac00\uae4c\uc6cc\ub3c4 \uc7ac\uac1c.",
+   "min": 2,
+   "max": 50,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeed1",
+   "title": "\ud06c\ub8e8\uc988 \uc18d\ub3c4\ud45c 1\ub2e8\uacc4 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 3\uc758 \uc21c\ud658 \uc124\uc815\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub192\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub0ae\uc544\uc9d0.",
+   "min": 30,
+   "max": 145,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeed2",
+   "title": "\ud06c\ub8e8\uc988 \uc18d\ub3c4\ud45c 2\ub2e8\uacc4 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 3\uc758 \uc21c\ud658 \uc124\uc815\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub192\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub0ae\uc544\uc9d0.",
+   "min": 30,
+   "max": 145,
+   "default": 50,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeed3",
+   "title": "\ud06c\ub8e8\uc988 \uc18d\ub3c4\ud45c 3\ub2e8\uacc4 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 3\uc758 \uc21c\ud658 \uc124\uc815\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub192\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub0ae\uc544\uc9d0.",
+   "min": 30,
+   "max": 145,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeed4",
+   "title": "\ud06c\ub8e8\uc988 \uc18d\ub3c4\ud45c 4\ub2e8\uacc4 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 3\uc758 \uc21c\ud658 \uc124\uc815\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub192\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub0ae\uc544\uc9d0.",
+   "min": 30,
+   "max": 145,
+   "default": 90,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "CruiseSpeed5",
+   "title": "\ud06c\ub8e8\uc988 \uc18d\ub3c4\ud45c 5\ub2e8\uacc4 (km/h)",
+   "descr": "\ubc84\ud2bc \ubaa8\ub4dc 3\uc758 \uc21c\ud658 \uc124\uc815\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub192\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ud574\ub2f9 \ub2e8\uacc4 \uc18d\ub3c4\uac00 \ub0ae\uc544\uc9d0.",
+   "min": 30,
+   "max": 145,
+   "default": 110,
+   "unit": 5
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "ApplyLongDynamicCost",
+   "title": "\ub3d9\uc801 \ucc28\uac04\uac70\ub9ac \uac00\uac10\uc18d",
+   "descr": "\ucf1c\uc9d0: \uc55e\ucc28 \uc18d\ub3c4\uc640 \ucc28\uac04\uac70\ub9ac\uc5d0 \ub530\ub77c \uac00\uac10\uc18d \ubc18\uc751\uc744 \ub3d9\uc801\uc73c\ub85c \uc870\uc815\ud569\ub2c8\ub2e4. \uc800\uc18d\uc5d0\uc11c \uc55e\ucc28\uac00 \uba40\uc5b4\uc9c0\uba74 \uac00\uc18d \ubc18\uc751\uc774 \ube68\ub77c\uc9c8 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoGasResumeGuard",
+   "title": "\uac00\uc18d\ud398\ub2ec \uc790\ub3d9\uc7ac\uac1c \uc548\uc804\uc870\uac74",
+   "descr": "\ucf1c\uc9d0: \uac00\uc18d\ud398\ub2ec \ud574\uc81c \uc790\ub3d9\uc7ac\uac1c \uc804\uc5d0 \ud06c\ub8e8\uc988 \uac00\ub2a5 \uc0c1\ud0dc\uc640 \uc548\uc804\uc870\uac74\uc744 \ud655\uc778\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "SccSmootherSyncGasPressed",
+   "title": "\uac00\uc18d\ud398\ub2ec \uc124\uc815\uc18d\ub3c4 \ub3d9\uae30\ud654",
+   "descr": "\ucf1c\uc9d0: \uac00\uc18d\ud398\ub2ec\ub85c \uc124\uc815\uc18d\ub3c4\ubcf4\ub2e4 \ube68\ub77c\uc9c0\uba74 \ud604\uc7ac \ucc28\ub7c9\uc18d\ub3c4\uc5d0 \ub9de\ucdb0 \uc124\uc815\uc18d\ub3c4\ub97c \uc62c\ub9bd\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud06c\ub8e8\uc988",
+   "name": "AutoResumeFromBrakeRelease",
+   "title": "\ube0c\ub808\uc774\ud06c \ud574\uc81c \uc624\ud1a0\ub9ac\uc90c",
+   "descr": "\ucf1c\uc9d0: \ube0c\ub808\uc774\ud06c\ub97c \ub193\uc744 \ub54c \uc870\ud5a5\u00b7\uc2e0\ud638\u00b7\uc55e\ucc28 \uac70\ub9ac \ub610\ub294 \uc18d\ub3c4 \uc548\uc804\uc870\uac74\uc744 \ub9cc\uc871\ud558\uba74 \ub871\ucee8\uc744 \uc7ac\uac1c\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TrafficStopMode",
+   "title": "E2E/ACC \uc870\uac74\ubd80 \uc120\ud0dd",
+   "descr": "0 ACC: \uc2e0\ud638\uc815\uc9c0 \ub054 / 1 AUTO: \uc6d0\uac70\ub9ac \uc2e0\ud638\uc815\uc9c0\u00b7\ucd9c\ubc1c\uc900\ube44\uc5d0\uc11c E2E / 2 APILOT: AUTO \uc870\uac74\uacfc \ube44\uc804 \uc55e\ucc28\uae4c\uc9c0 E2E.",
+   "min": 0,
+   "max": 2,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "ShowPlotMode",
+   "title": "\uc8fc\ud589 \ubd84\uc11d \uadf8\ub798\ud504",
+   "descr": "0 \ub054 / 1 \uac00\uc18d\ub3c4 / 2 \uc18d\ub3c4\u00b7\uac00\uc18d\ub3c4 / 3 \ubaa8\ub378 / 4 \uc55e\ucc28 / 5 \uc55e\ucc28 \uc800\ud06c / 6 \uc870\ud5a5\ud1a0\ud06c / 7 \uc870\ud5a5\uac01 / 8 \uace1\ub960. EON\uc5d0\uc11c\ub294 \uc120\ud0dd\ud55c \uadf8\ub798\ud504 \ud558\ub098\ub9cc 10Hz\ub85c \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 8,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "StartAccelApply",
+   "title": "\ucd9c\ubc1c \uac00\uc18d \uc801\uc6a9\uac12",
+   "descr": "\uc815\uc9c0 \ud6c4 \ucd9c\ubc1c \uac00\uc18d\ub3c4(\u00d70.02m/s\u00b2)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ube60\ub974\uace0 \uac15\ud558\uac8c \ucd9c\ubc1c / \uac12 \uac10\uc18c(-): \ucc9c\ucc9c\ud788 \ucd9c\ubc1c / 0: \ucd94\uac00 \ucd9c\ubc1c\uac00\uc18d \ub054.",
+   "min": 0,
+   "max": 100,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "JerkStartLimit",
+   "title": "\ucd9c\ubc1c \uc800\ud06c \uc81c\ud55c\uac12",
+   "descr": "\uc815\uc9c0 \ud6c4 \ucd9c\ubc1c \ucd08\uae30 \uc800\ud06c \uc81c\ud55c(\u00d70.1m/s\u00b3)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uac00\uc18d \ubc18\uc751\uc774 \ube68\ub77c\uc9d0 / \uac12 \uac10\uc18c(-): \ucd9c\ubc1c\uc774 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uad8c\uc7a5\uac12: 10.",
+   "min": 5,
+   "max": 50,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "StopAccelApply",
+   "title": "\uc815\uc9c0 \uc81c\ub3d9 \uc801\uc6a9\uac12",
+   "descr": "\uc815\uc9c0 \ub9c8\ubb34\ub9ac \uc81c\ub3d9\uac12(\u00d7-0.02m/s\u00b2)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc815\uc9c0 \uc9c1\uc804 \uc81c\ub3d9\uc774 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ubd80\ub4dc\ub7ec\uc6cc\uc9d0 / 0: \ucd94\uac00 \uc81c\ub3d9 \ub054.",
+   "min": 0,
+   "max": 100,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "StoppingDecelRate",
+   "title": "\uc815\uc9c0 \uc81c\ub3d9 \uc99d\uac00\uc728",
+   "descr": "\uc815\uc9c0 \ub9c8\ubb34\ub9ac \uc81c\ub3d9\uc774 \uc99d\uac00\ud558\ub294 \uc18d\ub3c4(\u00d70.01m/s\u00b3)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc81c\ub3d9\uc774 \ube60\ub974\uac8c \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \uc815\uc9c0 \uc9c1\uc804 \uc81c\ub3d9\uc774 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uae30\ubcf8\uac12: 120.",
+   "min": 20,
+   "max": 200,
+   "default": 120,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "StandstillHoldApply",
+   "title": "\uc644\uc804\uc815\uc9c0 \uc720\uc9c0 \uc81c\ub3d9\uac12",
+   "descr": "\ucc28\ub7c9\uc774 \uc644\uc804\ud788 \uba48\ucd98 \ub4a4 \uc720\uc9c0\ud558\ub294 \uc81c\ub3d9\uac12(\u00d7-0.02m/s\u00b2)\uc785\ub2c8\ub2e4. \uc815\uc9c0 \uc811\uadfc \uc81c\ub3d9\uc5d0\ub294 \uc601\ud5a5\uc744 \uc8fc\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \uae30\ubcf8\uac12 55 = -1.10m/s\u00b2.",
+   "min": 10,
+   "max": 100,
+   "default": 55,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "StandstillHoldRate",
+   "title": "\uc644\uc804\uc815\uc9c0 \uc720\uc9c0 \uc99d\uac00\uc728",
+   "descr": "\uc644\uc804\uc815\uc9c0 \ud6c4 \uc720\uc9c0 \uc81c\ub3d9\uac12\uae4c\uc9c0 \uc99d\uac00\ud558\ub294 \uc18d\ub3c4(\u00d70.01m/s\u00b3)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ube68\ub9ac \uace0\uc815 / \uac12 \uac10\uc18c(-): \ub354 \ubd80\ub4dc\ub7fd\uac8c \uace0\uc815. \uae30\ubcf8\uac12: 120.",
+   "min": 20,
+   "max": 200,
+   "default": 120,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "SoftHoldMode",
+   "title": "\uc18c\ud504\ud2b8\ud640\ub4dc \ubaa8\ub4dc",
+   "descr": "0: \ub054, 1: \ube0c\ub808\uc774\ud06c\ub97c \ub193\uc740 \ub4a4 \uc815\uc9c0 \uc720\uc9c0, 2: aPilot SCC \ud638\ud658 \ubaa8\ub4dc(\uc77c\ubd80 \ucc28\ub7c9\uc740 \uc624\ud1a0\ud640\ub4dc/EPB\uac00 \uc791\ub3d9\ud560 \uc218 \uc788\uc74c). \uac00\uc18d\ud398\ub2ec \ub610\ub294 RES/+\ub85c \ud574\uc81c\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TrafficStopAccel",
+   "title": "\uc2e0\ud638\uc815\uc9c0 \uac10\uc18d \uac15\ub3c4",
+   "descr": "\uc2e0\ud638\uc815\uc9c0 \uac10\uc18d \ube44\uc728\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub2a6\uace0 \uac15\ud558\uac8c \uac10\uc18d / \uac12 \uac10\uc18c(-): \uc77c\ucc0d \ubd80\ub4dc\ub7fd\uac8c \uac10\uc18d. aPilot \uae30\ubcf8\uac12: 80%.",
+   "min": 10,
+   "max": 120,
+   "default": 80,
+   "unit": 10
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TrafficStopDistanceAdjust",
+   "title": "\uc2e0\ud638 \uc815\uc9c0\uc120 \uac70\ub9ac\ubcf4\uc815 (cm)",
+   "descr": "\uc2e0\ud638\uc815\uc9c0\uc5d0\ub9cc \uc801\uc6a9\ub429\ub2c8\ub2e4. \uc591\uc218(+): \uc815\uc9c0\uc120\uc5d0 \ub354 \uac00\uae4c\uc774 \uc815\ucc28 / \uc74c\uc218(-): \uc815\uc9c0\uc120\uc5d0\uc11c \ub354 \uba40\ub9ac \uc815\ucc28. aPilot \uae30\ubcf8\uac12: +400cm.",
+   "min": -1000,
+   "max": 1000,
+   "default": 400,
+   "unit": 10
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TFollowSpeedRatio",
+   "title": "\uace0\uc18d \ucc28\uac04\uc2dc\uac04 \ube44\uc728 (%)",
+   "descr": "\uc18d\ub3c4\uac00 \ub192\uc544\uc9c8 \ub54c \ucc28\uac04\uc2dc\uac04\uc744 \ub298\ub9ac\ub294 \ube44\uc728\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uace0\uc18d\uc5d0\uc11c \ucc28\uac04\uac70\ub9ac \uc99d\uac00 / \uac12 \uac10\uc18c(-): \uace0\uc18d \ucc28\uac04\uac70\ub9ac \uac10\uc18c.",
+   "min": 100,
+   "max": 300,
+   "default": 120,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TFollowDecelBoost",
+   "title": "\uac10\uc18d \uc911 \ucc28\uac04\uc2dc\uac04 \ubcf4\uc815 (%)",
+   "descr": "\uc55e\ucc28 \ucd94\uc885 \uc911 \ub0b4 \ucc28\uac00 \uac10\uc18d\ud560 \ub54c\ub9cc \ucc28\uac04\uc2dc\uac04\uc744 \uc870\uae08 \ub298\ub9bd\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc7ac\uc815\uc9c0 \uc55e\ucc28\uc5d0 \ub354 \uc5ec\uc720 \uc788\uac8c \ubd80\ub4dc\ub7fd\uac8c \uc81c\ub3d9 / 0: \uc0ac\uc6a9 \uc548 \ud568. \uad8c\uc7a5\uac12: 30.",
+   "min": 0,
+   "max": 100,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "RadarReactionFactor",
+   "title": "\ub808\uc774\ub354 \ubc18\uc751 \uc608\uce21 \ube44\uc728 (%)",
+   "descr": "\uc55e\ucc28 \uac00\uac10\uc18d\uc774 \uc720\uc9c0\ub420 \uac83\uc73c\ub85c \uc608\uce21\ud558\ub294 \uc815\ub3c4\uc785\ub2c8\ub2e4. 100: \uae30\ubcf8 \ubc18\uc751 / \uac12 \uac10\uc18c(-): \uc55e\ucc28 \uac10\uc18d\uc744 \ub354 \uc624\ub798 \uc608\uc0c1\ud574 \uc77c\ucc0d \uc81c\ub3d9. \uad8c\uc7a5\uac12: 70.",
+   "min": 20,
+   "max": 200,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "PrevCruiseGap",
+   "title": "\uae30\uc5b5\ud560 \ud06c\ub8e8\uc988 GAP",
+   "descr": "\ub9c8\uc9c0\ub9c9 GAP\uc744 \uc800\uc7a5\u00b7\ubcf5\uc6d0\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \uba3c GAP / \uac12 \uac10\uc18c(-): \ub354 \uac00\uae4c\uc6b4 GAP.",
+   "min": 1,
+   "max": 4,
+   "default": 4,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "MySafeModeFactor",
+   "title": "SAFE \ucc28\uac04\uac70\ub9ac \ube44\uc728 (%)",
+   "descr": "ECO\u00b7SAFE \ubaa8\ub4dc\uc758 \ucc28\uac04\uac70\ub9ac \ubcf4\uc815\uac12\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucc28\uac04\uac70\ub9ac\uac00 \uc9e7\uc544\uc9d0 / \uac12 \uac10\uc18c(-): \ucc28\uac04\uac70\ub9ac\uac00 \uae38\uc5b4\uc9d0.",
+   "min": 50,
+   "max": 100,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "MyEcoModeFactor",
+   "title": "ECO \uac00\uc18d \ube44\uc728 (%)",
+   "descr": "ECO \ucd5c\ub300\uac00\uc18d \ube44\uc728\uc774\uba70 SAFE\uc5d0\ub3c4 \ud568\uaed8 \uc801\uc6a9\ub429\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uac00\uc18d\uc774 \ube68\ub77c\uc9d0 / \uac12 \uac10\uc18c(-): \uac00\uc18d\uc774 \ub290\ub824\uc9d0.",
+   "min": 10,
+   "max": 95,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "InitMyDrivingMode",
+   "title": "\uc2dc\uc791 \uc8fc\ud589\ubaa8\ub4dc",
+   "descr": "\uc2dc\ub3d9 \ud6c4 \uc2dc\uc791 \ubaa8\ub4dc\uc785\ub2c8\ub2e4. 1: SAFE / 2: ECO / 3: NORMAL / 4: FAST / 5: AUTO.",
+   "min": 1,
+   "max": 5,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "LongTuningKpV",
+   "title": "\uc885\ubc29\ud5a5 \ube44\ub840\uac8c\uc778 Kp",
+   "descr": "\ud604\uc7ac \uc18d\ub3c4\uc624\ucc28 \ubc18\uc751\uac12(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uac00\uac10\uc18d \ubc18\uc751\uc774 \ube60\ub974\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ubc18\uc751\uc774 \ubd80\ub4dc\ub7fd\uace0 \ub290\ub824\uc9d0.",
+   "min": 0,
+   "max": 200,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "LongTuningKiV",
+   "title": "\uc885\ubc29\ud5a5 \uc801\ubd84\uac8c\uc778 Ki",
+   "descr": "\ub204\uc801 \uc18d\ub3c4\uc624\ucc28 \ubcf4\uc815\uac12(\u00d70.001)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc9c0\uc18d \uc624\ucc28\ub97c \ube68\ub9ac \ubcf4\uc815 / \uac12 \uac10\uc18c(-): \ucc9c\ucc9c\ud788 \ubcf4\uc815. \uacfc\ub3c4\ud558\uba74 \ucd9c\ub801\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 2000,
+   "default": 200,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "LongTuningKf",
+   "title": "\uc885\ubc29\ud5a5 \ud53c\ub4dc\ud3ec\uc6cc\ub4dc Kf",
+   "descr": "\ubaa9\ud45c \uac00\uc18d\ub3c4 \ubc18\uc601\uac12(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uac00\uac10\uc18d \uba85\ub839\uc774 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \uba85\ub839\uc774 \uc57d\ud574\uc9d0.",
+   "min": 0,
+   "max": 200,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "LongitudinalActuatorDelayLowerBound",
+   "title": "\uc885\ubc29\ud5a5 \ucd5c\uc18c \ubc18\uc751\uc9c0\uc5f0",
+   "descr": "\uac00\uc18d\u00b7\uc81c\ub3d9\uc758 \uc9e7\uc740 \uc9c0\uc5f0 \ubcf4\uc815\uac12(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ubbf8\ub9ac \ubc18\uc751 / \uac12 \uac10\uc18c(-): \ubc18\uc751 \uc2dc\uc810\uc744 \ub2a6\ucda4 / 0: \ucc28\ub7c9 \uae30\ubcf8\uac12.",
+   "min": 0,
+   "max": 100,
+   "default": 50,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "LongitudinalActuatorDelayUpperBound",
+   "title": "\uc885\ubc29\ud5a5 \ucd5c\ub300 \ubc18\uc751\uc9c0\uc5f0",
+   "descr": "\uac00\uc18d\u00b7\uc81c\ub3d9\uc758 \uae34 \uc9c0\uc5f0 \ubcf4\uc815\uac12(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \uba3c \ubbf8\ub798\ub97c \ubcf4\uace0 \uc77c\ucc0d \ubc18\uc751 / \uac12 \uac10\uc18c(-): \ubc18\uc751\uc774 \ub2a6\uc5b4\uc9d0 / 0: \ucc28\ub7c9 \uae30\ubcf8\uac12.",
+   "min": 0,
+   "max": 100,
+   "default": 50,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "ComfortBrake",
+   "title": "\uc811\uadfc \uac10\uc18d \uae30\uc900 (x0.01m/s\u00b2)",
+   "descr": "\uc55e\ucc28\uc5d0 \uc811\uadfc\ud560 \ub54c \uc0c1\uc815\ud558\ub294 \uac10\uc18d \ub2a5\ub825\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc81c\ub3d9\uc744 \ub354 \ub2a6\uac8c \uc2dc\uc791\ud558\uace0 \uac15\ud558\uac8c / \uac12 \uac10\uc18c(-): \ub354 \uc77c\ucc0d \ubd80\ub4dc\ub7fd\uac8c \uac10\uc18d. \uc55e\ucc28\uc640 \uc18d\ub3c4\uac00 \uac19\uc744 \ub54c\ub294 \uc601\ud5a5\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uae30\ubcf8\uac12: 250.",
+   "min": 150,
+   "max": 400,
+   "default": 250,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "XEgoObstacleCost",
+   "title": "\ucc28\uac04\uac70\ub9ac \ucd94\uc885 \uac15\ub3c4 (x0.01)",
+   "descr": "\ubaa9\ud45c \ucc28\uac04\uac70\ub9ac \uc624\ucc28\ub97c \uc5bc\ub9c8\ub098 \uae09\ud558\uac8c \uc5c6\uc568\uc9c0 \uc815\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc81c\ub3d9 \uc2dc\uc791\uc774 \uc774\ub974\uace0 \ub2e8\ub2e8\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \uc81c\ub3d9\uc774 \ub2a6\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uae30\ubcf8\uac12: 600.",
+   "min": 100,
+   "max": 1200,
+   "default": 600,
+   "unit": 25
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "StopDistance",
+   "title": "\uc815\uc9c0 \uc720\uc9c0\uac70\ub9ac (cm)",
+   "descr": "\uc55e\ucc28 \uc815\uc9c0\uc640 \uc2e0\ud638\uc815\uc9c0\uc758 \uae30\ubcf8 \uc5ec\uc720\uac70\ub9ac\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \uba40\ub9ac \uc815\ucc28 / \uac12 \uac10\uc18c(-): \ub354 \uac00\uae4c\uc774 \uc815\ucc28. aPilot \uae30\ubcf8\uac12: 600cm.",
+   "min": 200,
+   "max": 1000,
+   "default": 600,
+   "unit": 50
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "CruiseMaxVals1",
+   "title": "\ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12 0 km/h",
+   "descr": "\ud574\ub2f9 \uc18d\ub3c4 \uae30\uc900\uc810\uc758 \ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uc911\uac04 \uc18d\ub3c4\ub294 \uc778\uc811\ud55c \ub450 \uae30\uc900\uc810 \uac12\uc744 \ubcf4\uac04\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud5c8\uc6a9 \uac00\uc18d\uc774 \ud06c\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ud5c8\uc6a9 \uac00\uc18d\uc774 \uc791\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uc8fc\ud589 \uc911 \uc57d 1\ucd08 \ub0b4\uc5d0 \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 250,
+   "default": 160,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "CruiseMaxVals2",
+   "title": "\ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12 40 km/h",
+   "descr": "\ud574\ub2f9 \uc18d\ub3c4 \uae30\uc900\uc810\uc758 \ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uc911\uac04 \uc18d\ub3c4\ub294 \uc778\uc811\ud55c \ub450 \uae30\uc900\uc810 \uac12\uc744 \ubcf4\uac04\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud5c8\uc6a9 \uac00\uc18d\uc774 \ud06c\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ud5c8\uc6a9 \uac00\uc18d\uc774 \uc791\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uc8fc\ud589 \uc911 \uc57d 1\ucd08 \ub0b4\uc5d0 \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 250,
+   "default": 120,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "CruiseMaxVals3",
+   "title": "\ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12 60 km/h",
+   "descr": "\ud574\ub2f9 \uc18d\ub3c4 \uae30\uc900\uc810\uc758 \ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uc911\uac04 \uc18d\ub3c4\ub294 \uc778\uc811\ud55c \ub450 \uae30\uc900\uc810 \uac12\uc744 \ubcf4\uac04\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud5c8\uc6a9 \uac00\uc18d\uc774 \ud06c\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ud5c8\uc6a9 \uac00\uc18d\uc774 \uc791\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uc8fc\ud589 \uc911 \uc57d 1\ucd08 \ub0b4\uc5d0 \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 250,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "CruiseMaxVals4",
+   "title": "\ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12 80 km/h",
+   "descr": "\ud574\ub2f9 \uc18d\ub3c4 \uae30\uc900\uc810\uc758 \ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uc911\uac04 \uc18d\ub3c4\ub294 \uc778\uc811\ud55c \ub450 \uae30\uc900\uc810 \uac12\uc744 \ubcf4\uac04\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud5c8\uc6a9 \uac00\uc18d\uc774 \ud06c\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ud5c8\uc6a9 \uac00\uc18d\uc774 \uc791\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uc8fc\ud589 \uc911 \uc57d 1\ucd08 \ub0b4\uc5d0 \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 250,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "CruiseMaxVals5",
+   "title": "\ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12 110 km/h",
+   "descr": "\ud574\ub2f9 \uc18d\ub3c4 \uae30\uc900\uc810\uc758 \ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uc911\uac04 \uc18d\ub3c4\ub294 \uc778\uc811\ud55c \ub450 \uae30\uc900\uc810 \uac12\uc744 \ubcf4\uac04\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud5c8\uc6a9 \uac00\uc18d\uc774 \ud06c\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ud5c8\uc6a9 \uac00\uc18d\uc774 \uc791\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uc8fc\ud589 \uc911 \uc57d 1\ucd08 \ub0b4\uc5d0 \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 250,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "CruiseMaxVals6",
+   "title": "\ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12 140 km/h",
+   "descr": "\ud574\ub2f9 \uc18d\ub3c4 \uae30\uc900\uc810\uc758 \ucd5c\ub300 \uac00\uc18d \uc0c1\ud55c\uac12(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uc911\uac04 \uc18d\ub3c4\ub294 \uc778\uc811\ud55c \ub450 \uae30\uc900\uc810 \uac12\uc744 \ubcf4\uac04\ud569\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ud5c8\uc6a9 \uac00\uc18d\uc774 \ud06c\uace0 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ud5c8\uc6a9 \uac00\uc18d\uc774 \uc791\uace0 \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uc8fc\ud589 \uc911 \uc57d 1\ucd08 \ub0b4\uc5d0 \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 250,
+   "default": 60,
+   "unit": 5
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TFollowGap1",
+   "title": "\ucc28\uac04\uc2dc\uac04 GAP 1",
+   "descr": "\ud574\ub2f9 GAP\uc758 \ucd94\uc885\uc2dc\uac04(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc55e\ucc28\uc640 \uba40\uc5b4\uc9d0 / \uac12 \uac10\uc18c(-): \uc55e\ucc28\uc640 \uac00\uae4c\uc6cc\uc9d0.",
+   "min": 70,
+   "max": 300,
+   "default": 110,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TFollowGap2",
+   "title": "\ucc28\uac04\uc2dc\uac04 GAP 2",
+   "descr": "\ud574\ub2f9 GAP\uc758 \ucd94\uc885\uc2dc\uac04(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc55e\ucc28\uc640 \uba40\uc5b4\uc9d0 / \uac12 \uac10\uc18c(-): \uc55e\ucc28\uc640 \uac00\uae4c\uc6cc\uc9d0.",
+   "min": 70,
+   "max": 300,
+   "default": 120,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TFollowGap3",
+   "title": "\ucc28\uac04\uc2dc\uac04 GAP 3",
+   "descr": "\ud574\ub2f9 GAP\uc758 \ucd94\uc885\uc2dc\uac04(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc55e\ucc28\uc640 \uba40\uc5b4\uc9d0 / \uac12 \uac10\uc18c(-): \uc55e\ucc28\uc640 \uac00\uae4c\uc6cc\uc9d0.",
+   "min": 70,
+   "max": 300,
+   "default": 140,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "TFollowGap4",
+   "title": "\ucc28\uac04\uc2dc\uac04 GAP 4",
+   "descr": "\ud574\ub2f9 GAP\uc758 \ucd94\uc885\uc2dc\uac04(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc55e\ucc28\uc640 \uba40\uc5b4\uc9d0 / \uac12 \uac10\uc18c(-): \uc55e\ucc28\uc640 \uac00\uae4c\uc6cc\uc9d0.",
+   "min": 70,
+   "max": 300,
+   "default": 160,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "LongControlEnabled",
+   "title": "\ub871\ucee8\ud2b8\ub864 \uc0ac\uc6a9(\ubc30\uc120\uac1c\uc870)",
+   "descr": "\ucf1c\uc9d0: \ubc30\uc120 \uac1c\uc870\uac00 \uc644\ub8cc\ub41c \ud604\ub300\u00b7\uae30\uc544 \ucc28\ub7c9\uc5d0\uc11c \uc624\ud508\ud30c\uc77c\ub7ff\uc774 \uac00\uc18d\uacfc \uc81c\ub3d9\uc744 \uc81c\uc5b4\ud569\ub2c8\ub2e4. \ubc30\uc120 \uac1c\uc870\uac00 \uc548 \ub41c \ucc28\ub7c9\uc5d0\uc11c\ub294 \ucf1c\uc9c0 \ub9c8\uc2ed\uc2dc\uc624.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "MixRadarInfo",
+   "title": "\ub808\uc774\ub354\u00b7\ube44\uc804 \uac00\uc18d\ub3c4 \ud63c\ud569",
+   "descr": "\ucf1c\uc9d0: \ub808\uc774\ub354 \uc55e\ucc28\uc640 \ube44\uc804 \ubaa8\ub378\uc758 \uac00\uc18d\ub3c4 \ubcc0\ud654\ub97c \ud63c\ud569\ud574 \ucd9c\ubc1c\u00b7\uac10\uc18d \ubc18\uc751\uc744 \ubcf4\uc644\ud569\ub2c8\ub2e4. / \uaebc\uc9d0: \ub808\uc774\ub354 \uc815\ubcf4\ub97c \uc6b0\uc120\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\uc885\ubc29\ud5a5",
+   "name": "MyDrivingMode",
+   "title": "\ud604\uc7ac \uc8fc\ud589\ubaa8\ub4dc",
+   "descr": "1: SAFE / 2: ECO / 3: NORMAL / 4: FAST. \uc8fc\ud589 \uc911 \uc989\uc2dc \ubc18\uc601\ub429\ub2c8\ub2e4.",
+   "min": 1,
+   "max": 4,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "CustomSteerRatio",
+   "title": "SR",
+   "descr": "\uc870\ud5a5\ube44(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uac19\uc740 \ucee4\ube0c\uc5d0\uc11c \uc870\ud5a5\ub7c9\uc774 \ucee4\uc9d0 / \uac12 \uac10\uc18c(-): \uc870\ud5a5\ub7c9\uc774 \uc791\uc544\uc9d0.\n\uc2e4\uc2dc\uac04 \uc870\ud5a5\ube44 \uc0ac\uc6a9\uc774 \ucf1c\uc838 \uc788\uc73c\uba74 \uc774 \uac12 \ub300\uc2e0 \ud559\uc2b5\uac12\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4.\n\ubc94\uc704: 1000 ~ 2000  /  \uae30\ubcf8\uac12: 1650 (=16.50)",
+   "min": 1000,
+   "max": 2000,
+   "default": 1650,
+   "unit": 10
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "SteerActuatorDelay",
+   "title": "SAD",
+   "descr": "\uc870\ud5a5 \uc9c0\uc5f0 \ubcf4\uc815\uac12(\u00d70.01\ucd08)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ubbf8\ub9ac \uc870\ud5a5 / \uac12 \uac10\uc18c(-): \uc870\ud5a5 \uc2dc\uc791\uc774 \ub2a6\uc5b4\uc9d0.\n\ub108\ubb34 \ub192\uc73c\uba74 \ucee4\ube0c \uc548\ucabd\uc73c\ub85c \uce58\uc6b0\uce58\uace0 \ub108\ubb34 \ub0ae\uc73c\uba74 \ubc14\uae65\ucabd\uc73c\ub85c \ubc00\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.\n\ubc94\uc704: 0 ~ 80  /  \uae30\ubcf8\uac12: 25 (=0.25\ucd08, \ucc28\ub7c9 \uc815\uc758\uac12)",
+   "min": 0,
+   "max": 80,
+   "default": 25,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueKpV",
+   "title": "\ud1a0\ud06c \ube44\ub840\uac8c\uc778 Kp",
+   "descr": "\ud604\uc7ac \uc870\ud5a5\uc624\ucc28 \ubc18\uc751\uac12(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc870\ud5a5 \ubc18\uc751\uc774 \uac15\ud558\uace0 \ube60\ub984 / \uac12 \uac10\uc18c(-): \ubd80\ub4dc\ub7fd\uace0 \ub290\ub9bc. \uae30\ubcf8\uac12: 100 (=1.00, \ucc28\ub7c9 \uc815\uc758\uac12\uacfc \ub3d9\uc77c).",
+   "min": 0,
+   "max": 500,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueKiV",
+   "title": "\ud1a0\ud06c \uc801\ubd84\uac8c\uc778 Ki",
+   "descr": "\ub204\uc801 \uc870\ud5a5\uc624\ucc28 \ubcf4\uc815\uac12(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc9c0\uc18d \uc624\ucc28\ub97c \ube68\ub9ac \ubcf4\uc815 / \uac12 \uac10\uc18c(-): \ucc9c\ucc9c\ud788 \ubcf4\uc815.\n\uac12\uc774 \ud06c\uba74 \uae34 \ucee4\ube0c\uc5d0\uc11c \uc801\ubd84\uc774 \uc313\uc5ec \uc548\ucabd\uc73c\ub85c \ud30c\uace0\ub4e4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.\n\ucc28\ub7c9 \uc815\uc758\uac12\uc740 10 (=0.10) \uc774\uc9c0\ub9cc \uc801\ubd84 \ub204\uc801 \uc774\ub825\uc774 \uc788\uc5b4 \uae30\ubcf8\uac12\uc740 5 (=0.05) \uc785\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 200,
+   "default": 5,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueKf",
+   "title": "\ud1a0\ud06c \ud53c\ub4dc\ud3ec\uc6cc\ub4dc Kf",
+   "descr": "\ubaa9\ud45c \uc870\ud5a5\ud1a0\ud06c \ubc18\uc601\uac12(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uc804\uccb4 \uc870\ud5a5 \uba85\ub839\uc774 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \uc57d\ud574\uc9d0. \uae30\ubcf8\uac12: 100 (=1.00, \ucc28\ub7c9 \uc815\uc758\uac12\uacfc \ub3d9\uc77c).",
+   "min": 0,
+   "max": 200,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueKd",
+   "title": "\ud1a0\ud06c \ubbf8\ubd84\uac8c\uc778 Kd",
+   "descr": "\uae09\uaca9\ud55c \uc870\ud5a5\ubcc0\ud654 \uc5b5\uc81c\uac12(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ubcc0\ud654\uac00 \uc5b5\uc81c\ub418\uc5b4 \uc548\uc815\uc801\uc774\ub098 \ub454\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ubc18\uc751\uc774 \ube68\ub77c\uc9d0. \uae30\ubcf8\uac12: 0.",
+   "min": 0,
+   "max": 200,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LatAccelFrictionFactor",
+   "title": "\ub9c8\ucc30\ubcf4\uc0c1 \ud6a1\uac00\uc18d \ube44\uc728",
+   "descr": "\ud6a1\uac00\uc18d\ub3c4 \uc624\ucc28\ub97c \ub9c8\ucc30\ubcf4\uc0c1\uc5d0 \ubc18\uc601\ud558\ub294 \ube44\uc728(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucee4\ube0c \uc870\ud5a5 \ubc18\uc751\uc774 \uac15\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \ubd80\ub4dc\ub7ec\uc6cc\uc9d0. \uae30\ubcf8\uac12: 70.",
+   "min": 0,
+   "max": 300,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LatJerkFrictionFactor",
+   "title": "\ub9c8\ucc30\ubcf4\uc0c1 \ud6a1\uc800\ud06c \ube44\uc728",
+   "descr": "\uc608\uce21 \ud6a1\uc800\ud06c \ubc18\uc601\ube44\uc728(\u00d70.01)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucee4\ube0c \uc9c4\uc785 \uc870\ud5a5\uc774 \ube68\ub77c\uc9d0 / \uac12 \uac10\uc18c(-): \uc9c4\uc785 \ubc18\uc751\uc774 \ub290\ub824\uc9d0 / 0: \uc0ac\uc6a9 \uc548 \ud568. \uae30\ubcf8\uac12: 40.",
+   "min": 0,
+   "max": 200,
+   "default": 40,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "AutoLaneChangeSpeed",
+   "title": "\uc790\ub3d9 \ucc28\uc120\ubcc0\uacbd \ucd5c\uc800\uc18d\ub3c4",
+   "descr": "\uc790\ub3d9\u00b7\ubc29\ud5a5\uc9c0\uc2dc\ub4f1 \ucc28\uc120\ubcc0\uacbd \ud5c8\uc6a9 \ucd5c\uc800\uc18d\ub3c4(km/h)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ub192\uc740 \uc18d\ub3c4\uc5d0\uc11c\ub9cc \uc791\ub3d9 / \uac12 \uac10\uc18c(-): \uc800\uc18d\uc5d0\uc11c\ub3c4 \uc791\ub3d9.",
+   "min": 0,
+   "max": 100,
+   "default": 50,
+   "unit": 10
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "UseLiveSteerRatio",
+   "title": "\uc2e4\uc2dc\uac04 \ud559\uc2b5SR\uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: liveParameters\uac00 \ud559\uc2b5\ud55c \uc870\ud5a5\ube44 \uc0ac\uc6a9 / \uaebc\uc9d0: \uc704\uc758 \uace0\uc815 \uc870\ud5a5\ube44 \uc0ac\uc6a9.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueCustom",
+   "title": "\ud1a0\ud06ccustom\uc0ac\uc6a9",
+   "descr": "\ucf1c\uc9d0: \uc544\ub798 \ud1a0\ud06c \uc218\ub3d9\uac12 \uc801\uc6a9 / \uaebc\uc9d0: \ucc28\ub7c9 \uc815\uc758\uac12 \uc0ac\uc6a9.\n\ucc28\ub7c9 \uc815\uc758\uac12 = torque_data/params.yaml \uc758 GENESIS 2015-2016 (FACTOR 2.747 / FRICTION 0.098)\n+ kp 1.00 / ki 0.10 / kf 1.00. \ucf54\ub4dc\uc5d0 \uc788\ub294 \uac12\uc774\ub77c \ud654\uba74\uc5d0\uc11c\ub294 \ubabb \ubc14\uafc9\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LaneChangeEnabled",
+   "title": "\ucc28\uc120\ubcc0\uacbd \ubcf4\uc870",
+   "descr": "\ucf1c\uc9d0: \ubc29\ud5a5\uc9c0\uc2dc\ub4f1\uacfc \uc6b4\uc804\uc790 \uc870\ud5a5 \uc785\ub825\uc73c\ub85c \ucc28\uc120\ubcc0\uacbd\uc744 \ubcf4\uc870\ud569\ub2c8\ub2e4. \uc8fc\ubcc0 \ucc28\ub7c9\uc758 \uc548\uc804 \uc5ec\ubd80\ub294 \uc6b4\uc804\uc790\uac00 \uc9c1\uc811 \ud655\uc778\ud574\uc57c \ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "AutoLaneChangeEnabled",
+   "title": "\uc790\ub3d9 \ucc28\uc120\ubcc0\uacbd(\uc870\ud5a5 \uc785\ub825 \uc5c6\uc74c)",
+   "descr": "\ucf1c\uc9d0: \ubc29\ud5a5\uc9c0\uc2dc\ub4f1 \uc791\ub3d9 \ud6c4 \ubcc4\ub3c4\uc758 \ud578\ub4e4 \uc785\ub825 \uc5c6\uc774 \ucc28\uc120\ubcc0\uacbd\uc744 \uc2dc\uc791\ud569\ub2c8\ub2e4. \uc2dc\ud5d8 \uae30\ub2a5\uc774\ubbc0\ub85c \uc8fc\ubcc0\uc744 \uc9c1\uc811 \ud655\uc778\ud558\uc2ed\uc2dc\uc624.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "KeepSteeringTurnSignals",
+   "title": "\ubc29\ud5a5\uc9c0\uc2dc\ub4f1 \uc911 \uc870\ud5a5 \uc720\uc9c0",
+   "descr": "\ucf1c\uc9d0: \ubc29\ud5a5\uc9c0\uc2dc\ub4f1 \uc791\ub3d9 \uc911\uc5d0\ub3c4 \uc870\ud5a5 \uc81c\uc5b4\ub97c \uc720\uc9c0\ud569\ub2c8\ub2e4. / \uaebc\uc9d0: \ucc28\ub7c9 \uc870\uac74\uc5d0 \ub530\ub77c \uc870\ud5a5\uc774 \uc81c\ud55c\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueAccelFactor",
+   "title": "LAT ACCEL FACTOR (x1000)",
+   "descr": "\ud6a1\uac00\uc18d\ub3c4 \ub300\ube44 \ud1a0\ud06c \uacc4\uc218 x1000. 2700 = 2.70.\n\uac12 \uc99d\uac00(+): \uc870\ud5a5\uc774 \uc57d\ud574\uc9d0 / \uac12 \uac10\uc18c(-): \uc870\ud5a5\uc774 \uac15\ud574\uc9d0. \ubc94\uc704 500~4500.",
+   "min": 500,
+   "max": 4500,
+   "default": 2750,
+   "unit": 50
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "LateralTorqueFriction",
+   "title": "FRICTION (x1000)",
+   "descr": "\uc815\uc9c0\ub9c8\ucc30 \ubcf4\uc0c1\uac12 x1000. 80 = 0.080.\n\uac12 \uc99d\uac00(+): \uc911\uc559 \ubd80\uadfc \ubc18\uc751\uc774 \ube68\ub77c\uc9d0 / \ub108\ubb34 \ud06c\uba74 \uc9c1\uc9c4\uc5d0\uc11c \ud754\ub4e4\ub9bc. \ubc94\uc704 0~200.",
+   "min": 0,
+   "max": 200,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "AdjustLaneOffset",
+   "title": "\ucc28\uc120 \uc5ec\uc720\uacf5\uac04 \uc790\ub3d9\ubcf4\uc815 (cm)",
+   "descr": "\uc88c\uc6b0 \uc5ec\uc720\uacf5\uac04\uc774 \ube44\ub300\uce6d\uc77c \ub54c \uc5ec\uc720 \uc788\ub294 \ucabd\uc73c\ub85c \uacbd\ub85c \uc774\ub3d9. 0=\ub054, 0~40cm.",
+   "min": 0,
+   "max": 40,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "DynamicLaneProfile",
+   "title": "\ub3d9\uc801 \ucc28\uc120\ubaa8\ub4dc",
+   "descr": "0: \ucc28\uc120 \uc0ac\uc6a9 / 1: \ucc28\uc120 \ubbf8\uc0ac\uc6a9(E2E) / 2: \uc790\ub3d9 \uc804\ud658.",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud6a1\ubc29\ud5a5",
+   "name": "AutoLaneChangeTimer",
+   "title": "\uc790\ub3d9 \ucc28\uc120\ubcc0\uacbd \ub300\uae30\uc2dc\uac04",
+   "descr": "0: \uc989\uc2dc / 1: 0.1s / 2: 0.5s / 3: 1.0s / 4: 1.5s / 5: 2.0s.",
+   "min": 0,
+   "max": 5,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "CarrotAutoTurnControl",
+   "title": "\ub0b4\ube44 ATC \ubaa8\ub4dc",
+   "descr": "0: \ub054 / 1: \ud68c\uc804 \uc870\ud5a5\ubcf4\uc870 / 2: \uc870\ud5a5\ubcf4\uc870+\ud68c\uc804\uac10\uc18d / 3: \ud68c\uc804\uac10\uc18d\ub9cc \uc0ac\uc6a9.",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "CarrotAutoTurnSpeed",
+   "title": "ATC \ud68c\uc804\uc18d\ub3c4",
+   "descr": "\ud68c\uc804 \uad6c\uac04 \ubaa9\ud45c\uc18d\ub3c4(km/h)\uc774\uba70 \ubaa8\ub4dc 2\u00b73\uc5d0\uc11c \uc801\uc6a9\ub429\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \ube60\ub974\uac8c \ud68c\uc804 / \uac12 \uac10\uc18c(-): \ub354 \ub9ce\uc774 \uac10\uc18d.",
+   "min": 30,
+   "max": 60,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "CarrotAutoTurnEndTime",
+   "title": "ATC \uac10\uc18d\uc2dc\uc810",
+   "descr": "\ud68c\uc804\uac10\uc18d \uc900\ube44\uc2dc\uac04(\ucd08)\uc774\uba70 \ubaa8\ub4dc 2\u00b73\uc5d0\uc11c \uc801\uc6a9\ub429\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub354 \uc77c\ucc0d \uac10\uc18d \uc2dc\uc791 / \uac12 \uac10\uc18c(-): \ud68c\uc804\uc5d0 \uac00\uae4c\uc6cc\uc838 \uac10\uc18d.",
+   "min": 2,
+   "max": 12,
+   "default": 6,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "AutoCurveSpeedFactor",
+   "title": "\ube44\uc804 \ucee4\ube0c \uac10\uc18d\ube44\uc728",
+   "descr": "\ube44\uc804 \ubaa8\ub378\uc758 \ucee4\ube0c \ud310\ub2e8 \uac15\ub3c4\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucee4\ube0c\uc5d0\uc11c \ub354 \ub9ce\uc774 \uac10\uc18d / \uac12 \uac10\uc18c(-): \uac10\uc18d\uc744 \uc904\uc784.",
+   "min": 50,
+   "max": 300,
+   "default": 120,
+   "unit": 5
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "AutoCurveSpeedLowerLimit",
+   "title": "\ucee4\ube0c \ucd5c\uc800\uc18d\ub3c4",
+   "descr": "\ube44\uc804\u00b7\ud2f0\ub9f5 \ucee4\ube0c \ubaa9\ud45c\uc18d\ub3c4\uc758 \ud558\ud55c\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucee4\ube0c \uc18d\ub3c4\uac00 \ube68\ub77c\uc9d0 / \uac12 \uac10\uc18c(-): \ub354 \ub0ae\uc740 \uc18d\ub3c4\uae4c\uc9c0 \uac10\uc18d.",
+   "min": 5,
+   "max": 80,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "MapTurnSpeedFactor",
+   "title": "\ud2f0\ub9f5 \uc9c0\ub3c4 \ucee4\ube0c\uc18d\ub3c4 \ube44\uc728",
+   "descr": "\ud2f0\ub9f5 \uacbd\ub85c\uc758 \ucee4\ube0c \ubaa9\ud45c\uc18d\ub3c4 \ube44\uc728\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ucee4\ube0c \uc18d\ub3c4\uac00 \ube68\ub77c\uc9c0\uace0 \uac10\uc18d\uc774 \uc904\uc5b4\ub4e6 / \uac12 \uac10\uc18c(-): \ub354 \ub290\ub9ac\uac8c \ud1b5\uacfc.",
+   "min": 50,
+   "max": 150,
+   "default": 90,
+   "unit": 5
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "AutoNaviSpeedDecelRate",
+   "title": "\uc9c0\ub3c4 \ucee4\ube0c \uac10\uc18d\ub3c4",
+   "descr": "\ud2f0\ub9f5 \ucee4\ube0c \uc9c4\uc785 \uac10\uc18d \uac15\ub3c4(\u00d70.01m/s\u00b2)\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \ub2a6\uace0 \uac15\ud558\uac8c \uac10\uc18d / \uac12 \uac10\uc18c(-): \uc77c\ucc0d \ubd80\ub4dc\ub7fd\uac8c \uac10\uc18d.",
+   "min": 10,
+   "max": 300,
+   "default": 120,
+   "unit": 10
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "AutoNaviSpeedCtrlEnd",
+   "title": "\uce74\uba54\ub77c \uac10\uc18d\uc644\ub8cc \uc2dc\uac04 (\ucd08)",
+   "descr": "C3 \ubc29\uc2dd\uc758 \uce74\uba54\ub77c \uac10\uc18d \uc644\ub8cc\uc9c0\uc810\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uce74\uba54\ub77c\uc5d0\uc11c \ub354 \uba3c \uc9c0\uc810\uae4c\uc9c0 \uac10\uc18d\uc744 \uc644\ub8cc\ud569\ub2c8\ub2e4.",
+   "min": 3,
+   "max": 20,
+   "default": 7,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "AutoNaviSpeedBumpTime",
+   "title": "\ubc29\uc9c0\ud131 \uac10\uc18d\uc644\ub8cc \uc2dc\uac04 (\ucd08)",
+   "descr": "C3 \ubc29\uc2dd\uc758 \ubc29\uc9c0\ud131 \uac10\uc18d \uc644\ub8cc\uc9c0\uc810\uc785\ub2c8\ub2e4. \ubaa9\ud45c\uc18d\ub3c4\ub85c \uc774 \uc2dc\uac04\ub9cc\ud07c \uc8fc\ud589\ud560 \uac70\ub9ac \uc804\uc5d0 \uac10\uc18d\uc744 \uc644\ub8cc\ud569\ub2c8\ub2e4.",
+   "min": 1,
+   "max": 50,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "AutoNaviSpeedBumpSpeed",
+   "title": "\ubc29\uc9c0\ud131 \ubaa9\ud45c\uc18d\ub3c4 (km/h)",
+   "descr": "C3 \ubc29\uc2dd\uc758 \uace0\uc815 \ubc29\uc9c0\ud131 \ud1b5\uacfc \ubaa9\ud45c\uc18d\ub3c4\uc785\ub2c8\ub2e4. \uce74\uba54\ub77c \uc548\uc804\ube44\uc728\uc740 \uc801\uc6a9\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+   "min": 10,
+   "max": 100,
+   "default": 35,
+   "unit": 5
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "TurnVisionControl",
+   "title": "\ucd5c\uc2e0 \ube44\uc804\u00b7\uc9c0\ub3c4 \ucee4\ube0c\uac10\uc18d",
+   "descr": "\ucf1c\uc9d0: \ube44\uc804 \ubaa8\ub378\uacfc \ud2f0\ub9f5 \uacbd\ub85c \uc911 \ub354 \ub0ae\uc740 \ucee4\ube0c \ubaa9\ud45c\uc18d\ub3c4\ub97c \uc801\uc6a9\ud569\ub2c8\ub2e4. / \uaebc\uc9d0: \ucee4\ube0c \uc790\ub3d9\uac10\uc18d\uc744 \uc0ac\uc6a9\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "StockNaviDecelEnabled",
+   "title": "\uc21c\uc815 \ub0b4\ube44 \uae30\ubc18 \uac10\uc18d",
+   "descr": "\ucf1c\uc9d0: \uc21c\uc815 \ub0b4\ube44\uac8c\uc774\uc158\uc758 \uc81c\ud55c\uc18d\ub3c4\u00b7\uce74\uba54\ub77c \uc815\ubcf4\ub97c \uc885\ubc29\ud5a5 \uac10\uc18d\uc5d0 \uc0ac\uc6a9\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ucee4\ube0c\ub0b4\ube44",
+   "name": "HapticFeedbackWhenSpeedCamera",
+   "title": "\uacfc\uc18d\uce74\uba54\ub77c \ud585\ud2f1 \uc54c\ub9bc",
+   "descr": "\ucf1c\uc9d0: \uacfc\uc18d\uce74\uba54\ub77c\uac00 \uac10\uc9c0\ub418\uba74 \ud578\ub4e4 \uc9c4\ub3d9\uc73c\ub85c \uc54c\ub9bd\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudFps",
+   "title": "S9 HUD \ud504\ub808\uc784",
+   "descr": "S9 HUD \ub80c\ub354\ub9c1 \uc18d\ub3c4: 0 \uc815\uc9c0 / 1~15 fps, \uae30\ubcf8\uac12 10",
+   "min": 0,
+   "max": 15,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudMapFps",
+   "title": "S9 HUD \uc9c0\ub3c4 \ud504\ub808\uc784",
+   "descr": "S9\uc5d0 \uc804\uc1a1\ub418\ub294 \ud2f0\ub9f5 \uc9c0\ub3c4 \uac31\uc2e0 \uc18d\ub3c4: 2~5 fps, \uae30\ubcf8\uac12 5",
+   "min": 2,
+   "max": 5,
+   "default": 5,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudBrightness",
+   "title": "S9 HUD \ubc1d\uae30",
+   "descr": "S9 \uc678\ubd80 HUD \ubc1d\uae30: 0 \uc790\ub3d9 / 1~100 \uace0\uc815",
+   "min": 0,
+   "max": 100,
+   "default": 65,
+   "unit": 5
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudJpegQuality",
+   "title": "S9 HUD \ud654\uc9c8",
+   "descr": "S9\uc5d0\uc11c \uc0dd\uc131\ud558\ub294 HUD JPEG \ud488\uc9c8: 20~95",
+   "min": 20,
+   "max": 95,
+   "default": 58,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudOutputMode",
+   "title": "S9 HUD \ucd9c\ub825 \ubaa8\ub4dc",
+   "descr": "1: \uc8fc\ud589 / \uc9c0\ub3c4 / \uc2dc\uc2a4\ud15c   2: \uc2e4\uc2dc\uac04 \ub514\ubc84\uadf8   3: S9 \ub9ac\ubaa8\ud2b8(\ud3f0 \uc0c1\ud0dc\u00b7USB \uc9c4\ub2e8)",
+   "min": 1,
+   "max": 3,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudCarStyle",
+   "title": "S9 HUD \ucc28\ub7c9 \ubaa8\uc591",
+   "descr": "1: \uc0ac\uc9c4 / 2: 3D \ubc15\uc2a4. \uc790\ucc28\uc640 \uc55e\ucc28\uc5d0 \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+   "min": 1,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudBsdStyle",
+   "title": "S9 HUD \uc0ac\uac01\uc9c0\ub300 \ud45c\uc2dc",
+   "descr": "1: \uacbd\uacc4\ub9c9\ub300\ub9cc / 2: \uc605\uc740 \ub760 / 3: \uc9c4\ud55c \ub760. \uc606\ucc28 \uc55e\ub4a4 \uc704\uce58\ub294 \uc54c \uc218 \uc5c6\uc5b4 \ucc28\uc120 \uc804\uccb4\ub97c \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 1,
+   "max": 3,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudRoadSigns",
+   "title": "S9 HUD \ub178\uba74 \ud45c\uc2dc",
+   "descr": "\uc8fc\ud589\uc52c \ub3c4\ub85c \ubc14\ub2e5\uc5d0 \uadf8\ub9ac\ub294 \ud45c\uc2dc\uc785\ub2c8\ub2e4.\n0: \ub054 / 1: \uc81c\ud55c\uc18d\ub3c4\ub9cc / 2: \uacfc\uc18d\ubc29\uc9c0\ud131\ub9cc / 3: \ub458 \ub2e4",
+   "min": 0,
+   "max": 3,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudRoadZ",
+   "title": "S9 HUD \ub178\uba74 \ub192\ub0ae\uc774",
+   "descr": "\uc624\ub974\ub9c9\u00b7\ub0b4\ub9ac\ub9c9 \ud45c\ud604 \uac15\ub3c4(%). 100: \ubaa8\ub378 \uac12 \uadf8\ub300\ub85c / 0: \ud3c9\uc9c0 / \uc74c\uc218: \uc704\uc544\ub798 \ubc18\uc804(\uc624\ub974\ub9c9\uc774 \uaebc\uc838 \ubcf4\uc77c \ub54c -100).",
+   "min": -300,
+   "max": 300,
+   "default": 100,
+   "unit": 10
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudPitchDyn",
+   "title": "S9 HUD \uc790\uc138 \ubc18\uc601",
+   "descr": "\uac00\uac10\uc18d\u00b7\uc694\ucca0\ub85c \ucc28\uac00 \uae30\uc6b8 \ub54c \uc218\ud3c9\uc120\uc774 \ub530\ub77c \uc6c0\uc9c1\uc774\ub294 \uc815\ub3c4(%). 0: \ub054(\uc815\uc9c0 \uce98\ub9ac\ube0c\ub9cc), \ud074\uc218\ub85d \ud654\uba74\uc774 \ub9ce\uc774 \ud754\ub4e4\ub9bd\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 200,
+   "default": 60,
+   "unit": 10
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudBuildings",
+   "title": "S9 HUD \ub3c4\ub85c\ubcc0 \uac74\ubb3c",
+   "descr": "0: \ub054 / 1: \ucf2c. \uac74\ubb3c\uc740 \uc2e4\uc81c \uc9c0\ud615\uc774 \uc544\ub2c8\ub77c \uc18d\ub3c4\uac10\uc6a9 \uc7a5\uc2dd\uc785\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudScreenMode",
+   "title": "S9 HUD \uc6b0\uce21 \ud654\uba74",
+   "descr": "1: \uc790\ub3d9(\uae38\uc548\ub0b4/\uc8fc\ud589\ub9ac\ud3ec\ud2b8) / 2: \uc2e4\uc2dc\uac04 \ub514\ubc84\uadf8 / 3: \uc8fc\ud589\ub9ac\ud3ec\ud2b8 \uace0\uc815",
+   "min": 1,
+   "max": 3,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudTheme",
+   "title": "S9 HUD \ud14c\ub9c8",
+   "descr": "0: \uc790\ub3d9 / 1: \ub2e4\ud06c / 2: \ub77c\uc774\ud2b8. S9\uc758 \uc2dc\uc2a4\ud15c\u00b7\uc6b0\uce21 \uc815\ubcf4 \ud328\ub110\uc5d0 \uc2e4\uc2dc\uac04 \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudOrientation",
+   "title": "S9 HUD \ud654\uba74 \ud68c\uc804",
+   "descr": "0: \uae30\ubcf8 / 2: 180\ub3c4 \ud68c\uc804",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 2
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudMirror",
+   "title": "S9 HUD \uc88c\uc6b0 \ubc18\uc804",
+   "descr": "0: \uae30\ubcf8 / 1: \uc88c\uc6b0 \ubbf8\ub7ec",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudPathFlip",
+   "title": "S9 HUD \ucc28\uc120/\uacbd\ub85c \uc88c\uc6b0\ubc18\uc804 (\uc2e4\ud5d8\uc801)",
+   "descr": "0: \uae30\ubcf8 / 1: \ucc28\uc120\u00b7\uacbd\ub85c \ub9ac\ubcf8\u00b7\uc606\ucc28 \uc704\uce58\ub9cc \uc88c\uc6b0\ubc18\uc804 (\ud654\uba74 \uc804\uccb4 \ubbf8\ub7ec\uc640\ub294 \ubcc4\uac1c, \uc9c4\ub2e8\uc6a9)",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudLanguage",
+   "title": "S9 HUD \uc5b8\uc5b4",
+   "descr": "0: \ud55c\uad6d\uc5b4 / 1: English",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudRadarInfo",
+   "title": "S9 HUD \ub808\uc774\ub354 \uc815\ubcf4",
+   "descr": "0: \uc228\uae40 / 1,3: \uc55e\ucc28 \uc0c1\ub300\uc18d\ub3c4 / 2,4: \uc55e\ucc28 \uac70\ub9ac+\uc0c1\ub300\uc18d\ub3c4",
+   "min": 0,
+   "max": 4,
+   "default": 4,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHud",
+   "title": "S9 \uc678\ubd80 HUD \uc0ac\uc6a9",
+   "descr": "EON \uc8fc\ud589 \ub370\uc774\ud130 \uc804\uc1a1\uacfc S9\uc758 TURZX USB HUD \ucd9c\ub825\uc744 \ucf1c\uac70\ub098 \ub055\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud654\uba74",
+   "name": "ShowPathWidth",
+   "title": "\uc8fc\ud589 \uacbd\ub85c \ud3ed (cm)",
+   "descr": "\ucc28\ub7c9 \uc911\uc2ec\uc5d0\uc11c \uacbd\ub85c \ud55c\ucabd \ub05d\uae4c\uc9c0\uc758 \ud45c\uc2dc \ud3ed\uc785\ub2c8\ub2e4. \uac12 \uc99d\uac00(+): \uacbd\ub85c\uac00 \ub113\uac8c \ud45c\uc2dc / \uac12 \uac10\uc18c(-): \uc881\uac8c \ud45c\uc2dc. \uc81c\uc5b4 \uacbd\ub85c\uc5d0\ub294 \uc601\ud5a5\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
+   "min": 30,
+   "max": 150,
+   "default": 90,
+   "unit": 10
+  },
+  {
+   "group": "\ud654\uba74",
+   "name": "ShowCarrotHud",
+   "title": "\uc88c\uce21 HUD \ubc15\uc2a4 \ud45c\uc2dc",
+   "descr": "\ucf1c\uc9d0: \uc18d\ub3c4\u00b7\ud06c\ub8e8\uc988\u00b7GAP\u00b7\uae30\uc5b4\u00b7\uc8fc\ud589\ubaa8\ub4dc\u00b7\uc81c\ud55c\uc18d\ub3c4 HUD\ub97c \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ud654\uba74",
+   "name": "ShowMapboxMap",
+   "title": "\uc6b0\uce21 \uc9c0\ub3c4 \uc774\ubbf8\uc9c0 \ud45c\uc2dc",
+   "descr": "\ucf1c\uc9d0: \uc6b0\uce21 Mapbox \uc9c0\ub3c4\uc640 ATC \uad6c\uac04\uc758 \ud2f0\ub9f5 \uc9c0\ub3c4 \uc774\ubbf8\uc9c0\ub97c \ud45c\uc2dc\ud569\ub2c8\ub2e4. / \uaebc\uc9d0: \uc9c0\ub3c4 \uc774\ubbf8\uc9c0\ub97c \uc989\uc2dc \uc228\uae41\ub2c8\ub2e4. \ud2f0\ub9f5 \ubc29\ud5a5\u00b7\uac70\ub9ac\u00b7\uce74\uba54\ub77c \uac10\uc18d \uae30\ub2a5\uc740 \uc720\uc9c0\ub429\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ud654\uba74",
+   "name": "ShowRouteMapAlways",
+   "title": "\ubaa9\uc801\uc9c0 \uc124\uc815 \uc2dc \uc9c0\ub3c4 \uc0c1\uc2dc\ud45c\uc2dc",
+   "descr": "\ucf1c\uc9d0: \ubaa9\uc801\uc9c0 \uacbd\ub85c\uac00 \ud65c\uc131\ud654\ub41c \ub3d9\uc548 ATC \uad6c\uac04\uc774 \uc544\ub2c8\uc5b4\ub3c4 \uc6b0\uce21 \ud2f0\ub9f5 \uc9c0\ub3c4 \uc774\ubbf8\uc9c0\ub97c \uacc4\uc18d \ud45c\uc2dc\ud569\ub2c8\ub2e4. / \uaebc\uc9d0: ATC \uc9c4\uc785 \uad6c\uac04\uc5d0\uc11c\ub9cc \ud45c\uc2dc\ud569\ub2c8\ub2e4. '\uc6b0\uce21 \uc9c0\ub3c4 \uc774\ubbf8\uc9c0 \ud45c\uc2dc'\uac00 \ucf1c\uc838 \uc788\uc5b4\uc57c \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "\ud654\uba74",
+   "name": "ShowGearAnimation",
+   "title": "\uae30\uc5b4 \ud31d\uc5c5 \uc560\ub2c8\uba54\uc774\uc158",
+   "descr": "\ucf1c\uc9d0: \ubcc0\uc18d\ub2e8\uc774 \ubc14\ub014 \ub54c \uc911\uc559 \ud31d\uc5c5 \uc560\ub2c8\uba54\uc774\uc158\uc744 \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "\ud654\uba74",
+   "name": "ShowPathStatusColor",
+   "title": "\uc8fc\ud589 \uacbd\ub85c \uc0c1\ud0dc\uc0c9",
+   "descr": "\ucf1c\uc9d0: \ud65c\uc131=\ub179\uc0c9, \uc815\uc18d=\ub178\ub780\uc0c9, \uac00\uc18d=\uc8fc\ud669\uc0c9, \uac10\uc18d=\ube68\uac04\uc0c9, \ube44\ud65c\uc131=\uac80\uc740\uc0c9\uc73c\ub85c \ud45c\uc2dc\ud569\ub2c8\ub2e4.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  }
+ ]
+}

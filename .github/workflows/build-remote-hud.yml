@@ -1,0 +1,54 @@
+name: Build Galaxy S9 Remote HUD APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [g_abcd]
+    paths:
+      - "selfdrive/eon_cluster/android_hud/**"
+      - ".github/workflows/build-remote-hud.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Restore stable debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: remote-hud-debug-keystore-v1
+      - name: Create debug keystore if missing
+        shell: bash
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair \
+              -keystore ~/.android/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000
+          fi
+      # v0.19+ builds the checked-in tree as-is.
+      # The old sed / apply_runtime_tuning.py / apply_s9_3d_patch.py steps are gone:
+      # they rewrote v0.17 sources into v0.18 at build time, which is why the
+      # installed APK always ran ahead of the repository.
+      - name: Build debug APK
+        working-directory: selfdrive/eon_cluster/android_hud
+        run: gradle :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eon-remote-hud-s9-debug
+          path: selfdrive/eon_cluster/android_hud/app/build/outputs/apk/debug/app-debug.apk
