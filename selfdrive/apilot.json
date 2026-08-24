@@ -1,0 +1,1385 @@
+{
+ "apilot": "g_abcd",
+ "params": [
+  {
+   "group": "기본",
+   "name": "OpenpilotEnabledToggle",
+   "title": "OPENPILOT ENABLED",
+   "descr": "켜짐: 차간거리·속도 및 차선유지 보조를 사용합니다. 항상 전방을 주시해야 하며 설정은 차량 전원이 꺼진 뒤 적용됩니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "IsLdwEnabled",
+   "title": "LDW ENABLED",
+   "descr": "켜짐: 50km/h 이상에서 방향지시등 없이 차선을 벗어나면 경고합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "IsMetric",
+   "title": "METRIC UNITS",
+   "descr": "켜짐: 속도를 km/h로 표시 / 꺼짐: mph로 표시합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "UseClusterSpeed",
+   "title": "USE CLUSTER SPEED",
+   "descr": "켜짐: 제어용 차량속도를 계기판 속도로 사용합니다. / 꺼짐(권장): 휠 속도를 사용합니다. 변경 후 다음 주행부터 적용됩니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "RecordFront",
+   "title": "DRIVER CAMERA RECORDING",
+   "descr": "켜짐: 운전자 모니터링 개선을 위해 실내 카메라 영상을 녹화하고 업로드합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "ExperimentalMode",
+   "title": "EXPERIMENTAL MODE",
+   "descr": "켜짐: E2E 종방향 제어 등 알파 수준 기능을 사용합니다. 시험 기능이므로 안전 경고를 확인하십시오.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "ExperimentalLongitudinalEnabled",
+   "title": "EXPERIMENTAL LONGITUDINAL",
+   "descr": "<b>주의: 이 차량의 종방향 제어는 시험 기능이며 순정 AEB가 비활성화될 수 있습니다.</b><br>\n          켜짐: 순정 ACC 대신 오픈파일럿이 가속과 제동을 제어합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "기본",
+   "name": "NavSettingTime24h",
+   "title": "24-HOUR TIME",
+   "descr": "켜짐: 도착예정시간을 24시간제로 표시 / 꺼짐: 오전·오후 형식으로 표시합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeedMin",
+   "title": "CRUISE SPEED MIN (km/h)",
+   "descr": "롱컨의 최저 설정속도입니다. 값 증가(+): 처음 설정되는 속도가 높아짐 / 값 감소(-): 더 낮은 속도로 설정 가능.",
+   "min": 5,
+   "max": 30,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "SpeedFromPCM",
+   "title": "SPEED FROM PCM",
+   "descr": "1: 순정 SCC 설정속도 사용 / 2: 오픈파일럿 설정속도와 사용자 크루즈 버튼 설정 사용.",
+   "min": 1,
+   "max": 2,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoGasTokSpeed",
+   "title": "AUTO GAS TOK SPEED (km/h)",
+   "descr": "가속페달 해제 후 자동재개가 가능한 최저속도입니다. 값 증가(+): 더 높은 속도에서만 재개 / 값 감소(-): 저속에서도 재개.",
+   "min": 5,
+   "max": 60,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoGasCancelSpeed",
+   "title": "AUTO GAS CANCEL SPEED (km/h)",
+   "descr": "이 속도 미만에서는 가속페달 해제 자동재개를 취소합니다. 값 증가(+): 자동재개 조건이 엄격해짐 / 값 감소(-): 저속 재개가 쉬워짐.",
+   "min": 0,
+   "max": 60,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseButtonMode",
+   "title": "CRUISE BUTTON MODE",
+   "descr": "0: 기본 증감 / 1: RES·SET 사용자 단위 / 2: SET으로 현재속도 동기화 / 3: RES로 지정속도표 순환.",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeedUnit",
+   "title": "CRUISE SPEED UNIT (km/h)",
+   "descr": "버튼 모드 1~3의 속도 증감 단위입니다. 값 증가(+): 한 번에 속도가 크게 변함 / 값 감소(-): 세밀하게 변함.",
+   "min": 1,
+   "max": 20,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeedUnitBasic",
+   "title": "CRUISE SPEED UNIT BASIC (km/h)",
+   "descr": "버튼 모드 0에서 짧게 누를 때의 증감 단위입니다. 값 증가(+): 큰 폭으로 변경 / 값 감소(-): 작은 폭으로 변경.",
+   "min": 1,
+   "max": 10,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseButtonLongDelay",
+   "title": "CRUISE BUTTON LONG DELAY",
+   "descr": "RES/SET 길게누름 판정시간(×0.01초)입니다. 값 증가(+): 더 오래 눌러야 작동 / 값 감소(-): 빠르게 길게누름으로 판정.",
+   "min": 30,
+   "max": 150,
+   "default": 40,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoSpeedUptoRoadSpeedLimit",
+   "title": "AUTO SPEED UPTO ROAD SPEED LIMIT (%)",
+   "descr": "앞차를 따라 설정속도를 올릴 수 있는 도로 제한속도 비율입니다. 값 증가(+): 더 높은 속도까지 증속 / 값 감소(-): 증속 상한이 낮아짐 / 0: 끔.",
+   "min": 0,
+   "max": 120,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoRoadSpeedAdjust",
+   "title": "AUTO ROAD SPEED ADJUST (%)",
+   "descr": "0: 설정속도 유지 / +값 증가: 제한속도 하락을 더 많이 반영 / +값 감소: 천천히 반영 / 음수: 새 제한속도로 즉시 변경.",
+   "min": -100,
+   "max": 100,
+   "default": 0,
+   "unit": 10
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoRoadSpeedLimitOffset",
+   "title": "AUTO ROAD SPEED LIMIT OFFSET (km/h)",
+   "descr": "도로 제한속도에 더하는 값입니다. 양수(+): 제한속도보다 높게 설정 / 음수(-): 제한속도보다 낮게 설정.",
+   "min": -30,
+   "max": 30,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoNaviSpeedSafetyFactor",
+   "title": "AUTO NAVI SPEED SAFETY FACTOR (%)",
+   "descr": "카메라·구간단속 목표속도 비율입니다. 값 증가(+): 목표속도가 높아져 감속이 줄어듦 / 값 감소(-): 더 낮게 감속 / 100: 원래 속도.",
+   "min": 80,
+   "max": 120,
+   "default": 105,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoResumeFromGas",
+   "title": "AUTO RESUME FROM GAS",
+   "descr": "0: 끔 / 1: 조건 충족 시 재개 / 2: 조건 충족 또는 0.4초 미만의 짧은 가속 후 재개.",
+   "min": 0,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoResumeFromGasSpeedMode",
+   "title": "AUTO RESUME FROM GAS SPEED MODE",
+   "descr": "0: 현재속도 / 1: 이전 설정속도 / 2: 앞차가 있을 때 이전 설정속도 / 3: 정지점 60m 초과·가속 1초 초과 시 이전 설정속도로 재개.",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoResumeFromBrakeCarSpeed",
+   "title": "AUTO RESUME FROM BRAKE CAR SPEED (km/h)",
+   "descr": "앞차가 없을 때 필요한 최저 재개속도입니다. 값 증가(+): 더 높은 속도에서만 재개 / 값 감소(-): 저속에서도 재개.",
+   "min": 5,
+   "max": 60,
+   "default": 30,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoResumeFromBrakeReleaseDist",
+   "title": "AUTO RESUME FROM BRAKE RELEASE DIST",
+   "descr": "브레이크 해제 재개에 필요한 앞차 거리입니다. 값 증가(+): 앞차가 더 멀어야 재개 / 값 감소(-): 가까워도 재개.",
+   "min": 2,
+   "max": 50,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeed1",
+   "title": "CRUISE SPEED1 (km/h)",
+   "descr": "버튼 모드 3의 순환 설정속도입니다. 0: 현재 도로 제한속도 사용 / 값 증가(+): 1단계 속도가 높아짐.",
+   "min": 0,
+   "max": 145,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeed2",
+   "title": "CRUISE SPEED2 (km/h)",
+   "descr": "버튼 모드 3의 순환 설정속도입니다. 값 증가(+): 해당 단계 속도가 높아짐 / 값 감소(-): 해당 단계 속도가 낮아짐.",
+   "min": 30,
+   "max": 145,
+   "default": 50,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeed3",
+   "title": "CRUISE SPEED3 (km/h)",
+   "descr": "버튼 모드 3의 순환 설정속도입니다. 값 증가(+): 해당 단계 속도가 높아짐 / 값 감소(-): 해당 단계 속도가 낮아짐.",
+   "min": 30,
+   "max": 145,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeed4",
+   "title": "CRUISE SPEED4 (km/h)",
+   "descr": "버튼 모드 3의 순환 설정속도입니다. 값 증가(+): 해당 단계 속도가 높아짐 / 값 감소(-): 해당 단계 속도가 낮아짐.",
+   "min": 30,
+   "max": 145,
+   "default": 90,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "CruiseSpeed5",
+   "title": "CRUISE SPEED5 (km/h)",
+   "descr": "버튼 모드 3의 순환 설정속도입니다. 값 증가(+): 해당 단계 속도가 높아짐 / 값 감소(-): 해당 단계 속도가 낮아짐.",
+   "min": 30,
+   "max": 145,
+   "default": 110,
+   "unit": 5
+  },
+  {
+   "group": "크루즈",
+   "name": "ApplyLongDynamicCost",
+   "title": "DYNAMIC FOLLOWING RESPONSE",
+   "descr": "켜짐: 앞차 속도와 차간거리에 따라 가감속 반응을 동적으로 조정합니다. 저속에서 앞차가 멀어지면 가속 반응이 빨라질 수 있습니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoGasResumeGuard",
+   "title": "AUTO GAS RESUME GUARD",
+   "descr": "켜짐: 가속페달 해제 자동재개 전에 크루즈 가능 상태와 안전조건을 확인합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "SccSmootherSyncGasPressed",
+   "title": "SCC SMOOTHER SYNC GAS PRESSED",
+   "descr": "켜짐: 가속페달로 설정속도보다 빨라지면 현재 차량속도에 맞춰 설정속도를 올립니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "크루즈",
+   "name": "AutoResumeFromBrakeRelease",
+   "title": "AUTO RESUME FROM BRAKE RELEASE",
+   "descr": "켜짐: 브레이크를 놓을 때 조향·신호·앞차 거리 또는 속도 안전조건을 만족하면 롱컨을 재개합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "TrafficStopMode",
+   "title": "E2E / ACC MODE",
+   "descr": "0 ACC: 신호정지 끔 / 1 AUTO: 원거리 신호정지·출발준비에서 E2E / 2 APILOT: AUTO 조건과 비전 앞차까지 E2E.",
+   "min": 0,
+   "max": 2,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "ShowPlotMode",
+   "title": "DRIVING ANALYSIS GRAPH",
+   "descr": "0 끔 / 1 가속도 / 2 속도·가속도 / 3 모델 / 4 앞차 / 5 앞차 저크 / 6 조향토크 / 7 조향각 / 8 곡률. EON에서는 선택한 그래프 하나만 10Hz로 표시합니다.",
+   "min": 0,
+   "max": 8,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "StartAccelApply",
+   "title": "START ACCEL",
+   "descr": "정지 후 출발 가속도(×0.02m/s²)입니다. 값 증가(+): 더 빠르고 강하게 출발 / 값 감소(-): 천천히 출발 / 0: 추가 출발가속 끔.",
+   "min": 0,
+   "max": 100,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "JerkStartLimit",
+   "title": "START JERK LIMIT",
+   "descr": "정지 후 출발 초기 저크 제한(×0.1m/s³)입니다. 값 증가(+): 가속 반응이 빨라짐 / 값 감소(-): 출발이 부드러워짐. 권장값: 10.",
+   "min": 5,
+   "max": 50,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "StopAccelApply",
+   "title": "STOPPING ACCEL",
+   "descr": "정지 마무리 제동값(×-0.02m/s²)입니다. 값 증가(+): 정지 직전 제동이 강해짐 / 값 감소(-): 부드러워짐 / 0: 추가 제동 끔.",
+   "min": 0,
+   "max": 100,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "StoppingDecelRate",
+   "title": "STOPPING DECEL RATE",
+   "descr": "정지 마무리 제동이 증가하는 속도(×0.01m/s³)입니다. 값 증가(+): 제동이 빠르게 강해짐 / 값 감소(-): 정지 직전 제동이 부드러워짐. 기본값: 120.",
+   "min": 20,
+   "max": 200,
+   "default": 120,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "StandstillHoldApply",
+   "title": "STANDSTILL HOLD",
+   "descr": "차량이 완전히 멈춘 뒤 유지하는 제동값(×-0.02m/s²)입니다. 정지 접근 제동에는 영향을 주지 않습니다. 기본값 55 = -1.10m/s².",
+   "min": 10,
+   "max": 100,
+   "default": 55,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "StandstillHoldRate",
+   "title": "STANDSTILL HOLD RATE",
+   "descr": "완전정지 후 유지 제동값까지 증가하는 속도(×0.01m/s³)입니다. 값 증가(+): 더 빨리 고정 / 값 감소(-): 더 부드럽게 고정. 기본값: 120.",
+   "min": 20,
+   "max": 200,
+   "default": 120,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "SoftHoldMode",
+   "title": "SOFT HOLD MODE",
+   "descr": "0: 끔, 1: 브레이크를 놓은 뒤 정지 유지, 2: aPilot SCC 호환 모드(일부 차량은 오토홀드/EPB가 작동할 수 있음). 가속페달 또는 RES/+로 해제합니다.",
+   "min": 0,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "TrafficStopAccel",
+   "title": "TRAFFIC STOP DECEL",
+   "descr": "신호정지 감속 비율입니다. 값 증가(+): 늦고 강하게 감속 / 값 감소(-): 일찍 부드럽게 감속. aPilot 기본값: 80%.",
+   "min": 10,
+   "max": 120,
+   "default": 80,
+   "unit": 10
+  },
+  {
+   "group": "종방향",
+   "name": "TrafficStopDistanceAdjust",
+   "title": "TRAFFIC STOP DISTANCE ADJUST (cm)",
+   "descr": "신호정지에만 적용됩니다. 양수(+): 정지선에 더 가까이 정차 / 음수(-): 정지선에서 더 멀리 정차. aPilot 기본값: +400cm.",
+   "min": -1000,
+   "max": 1000,
+   "default": 400,
+   "unit": 10
+  },
+  {
+   "group": "종방향",
+   "name": "TFollowSpeedRatio",
+   "title": "HIGH-SPEED T-FOLLOW RATIO (%)",
+   "descr": "속도가 높아질 때 차간시간을 늘리는 비율입니다. 값 증가(+): 고속에서 차간거리 증가 / 값 감소(-): 고속 차간거리 감소.",
+   "min": 100,
+   "max": 300,
+   "default": 120,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "TFollowDecelBoost",
+   "title": "DECEL T-FOLLOW BOOST (%)",
+   "descr": "앞차 추종 중 내 차가 감속할 때만 차간시간을 조금 늘립니다. 값 증가(+): 재정지 앞차에 더 여유 있게 부드럽게 제동 / 0: 사용 안 함. 권장값: 30.",
+   "min": 0,
+   "max": 100,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "RadarReactionFactor",
+   "title": "RADAR REACTION FACTOR (%)",
+   "descr": "앞차 가감속이 유지될 것으로 예측하는 정도입니다. 100: 기본 반응 / 값 감소(-): 앞차 감속을 더 오래 예상해 일찍 제동. 권장값: 70.",
+   "min": 20,
+   "max": 200,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "PrevCruiseGap",
+   "title": "PREVIOUS CRUISE GAP",
+   "descr": "마지막 GAP을 저장·복원합니다. 값 증가(+): 더 먼 GAP / 값 감소(-): 더 가까운 GAP.",
+   "min": 1,
+   "max": 4,
+   "default": 4,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "MySafeModeFactor",
+   "title": "SAFE T-FOLLOW RATIO (%)",
+   "descr": "ECO·SAFE 모드의 차간거리 보정값입니다. 값 증가(+): 차간거리가 짧아짐 / 값 감소(-): 차간거리가 길어짐.",
+   "min": 50,
+   "max": 100,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "MyEcoModeFactor",
+   "title": "ECO ACCEL RATIO (%)",
+   "descr": "ECO 최대가속 비율이며 SAFE에도 함께 적용됩니다. 값 증가(+): 가속이 빨라짐 / 값 감소(-): 가속이 느려짐.",
+   "min": 10,
+   "max": 95,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "InitMyDrivingMode",
+   "title": "INITIAL DRIVING MODE",
+   "descr": "시동 후 시작 모드입니다. 1: SAFE / 2: ECO / 3: NORMAL / 4: FAST / 5: AUTO.",
+   "min": 1,
+   "max": 5,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "LongTuningKpV",
+   "title": "LONGITUDINAL KP",
+   "descr": "현재 속도오차 반응값(×0.01)입니다. 값 증가(+): 가감속 반응이 빠르고 강해짐 / 값 감소(-): 반응이 부드럽고 느려짐.",
+   "min": 0,
+   "max": 200,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "LongTuningKiV",
+   "title": "LONGITUDINAL KI",
+   "descr": "누적 속도오차 보정값(×0.001)입니다. 값 증가(+): 지속 오차를 빨리 보정 / 값 감소(-): 천천히 보정. 과도하면 출렁일 수 있습니다.",
+   "min": 0,
+   "max": 2000,
+   "default": 200,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "LongTuningKf",
+   "title": "LONGITUDINAL KF",
+   "descr": "목표 가속도 반영값(×0.01)입니다. 값 증가(+): 가감속 명령이 강해짐 / 값 감소(-): 명령이 약해짐.",
+   "min": 0,
+   "max": 200,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "LongitudinalActuatorDelayLowerBound",
+   "title": "LONG ACTUATOR DELAY MIN",
+   "descr": "가속·제동의 짧은 지연 보정값(×0.01초)입니다. 값 증가(+): 더 미리 반응 / 값 감소(-): 반응 시점을 늦춤 / 0: 차량 기본값.",
+   "min": 0,
+   "max": 100,
+   "default": 50,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "LongitudinalActuatorDelayUpperBound",
+   "title": "LONG ACTUATOR DELAY MAX",
+   "descr": "가속·제동의 긴 지연 보정값(×0.01초)입니다. 값 증가(+): 더 먼 미래를 보고 일찍 반응 / 값 감소(-): 반응이 늦어짐 / 0: 차량 기본값.",
+   "min": 0,
+   "max": 100,
+   "default": 50,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "ComfortBrake",
+   "title": "COMFORT BRAKE (X0.01m/s²)",
+   "descr": "앞차에 접근할 때 상정하는 감속 능력입니다. 값 증가(+): 제동을 더 늦게 시작하고 강하게 / 값 감소(-): 더 일찍 부드럽게 감속. 앞차와 속도가 같을 때는 영향이 없습니다. 기본값: 250.",
+   "min": 150,
+   "max": 400,
+   "default": 250,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "XEgoObstacleCost",
+   "title": "LEAD DISTANCE COST (X0.01)",
+   "descr": "목표 차간거리 오차를 얼마나 급하게 없앨지 정합니다. 값 증가(+): 제동 시작이 이르고 단단해짐 / 값 감소(-): 제동이 늦고 부드러워짐. 기본값: 600.",
+   "min": 100,
+   "max": 1200,
+   "default": 600,
+   "unit": 25
+  },
+  {
+   "group": "종방향",
+   "name": "StopDistance",
+   "title": "STOP DISTANCE (cm)",
+   "descr": "앞차 정지와 신호정지의 기본 여유거리입니다. 값 증가(+): 더 멀리 정차 / 값 감소(-): 더 가까이 정차. aPilot 기본값: 600cm.",
+   "min": 200,
+   "max": 1000,
+   "default": 600,
+   "unit": 50
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals1",
+   "title": "CRUISE MAX VALS1 (0 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 160,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals20",
+   "title": "CRUISE MAX VALS20 (20 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 140,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals2",
+   "title": "CRUISE MAX VALS2 (40 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 120,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals3",
+   "title": "CRUISE MAX VALS3 (60 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals4",
+   "title": "CRUISE MAX VALS4 (80 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 80,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals5",
+   "title": "CRUISE MAX VALS5 (110 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "CruiseMaxVals6",
+   "title": "CRUISE MAX VALS6 (140 km/h)",
+   "descr": "해당 속도 기준점의 최대 가속 상한값(×0.01m/s²)입니다. 중간 속도는 인접한 두 기준점 값을 보간합니다. 값 증가(+): 허용 가속이 크고 강해짐 / 값 감소(-): 허용 가속이 작고 부드러워짐. 주행 중 약 1초 내에 반영됩니다.",
+   "min": 10,
+   "max": 250,
+   "default": 60,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "NoLeadCruiseAccelFactor",
+   "title": "NO-LEAD CRUISE ACCEL (%)",
+   "descr": "앞차가 없을 때 설정속도로 복귀하는 최대가속 비율입니다. CRUISE MAX 값에 이 비율을 곱하며, 설정속도에 가까워질수록 자동으로 더 낮아집니다. 값 증가(+): 빠른 속도 복귀 / 값 감소(-): 부드러운 속도 복귀. 권장값: 65%.",
+   "min": 30,
+   "max": 100,
+   "default": 65,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "NoLeadCruiseJerkLimit",
+   "title": "NO-LEAD ACCEL RAMP (X0.01m/s³)",
+   "descr": "앞차가 없을 때 가속 명령이 증가하는 속도입니다. 값 증가(+): 가속이 빨리 강해짐 / 값 감소(-): 가속이 천천히 부드럽게 증가. 감속과 앞차 추종에는 적용하지 않습니다. 권장값: 25.",
+   "min": 5,
+   "max": 100,
+   "default": 25,
+   "unit": 5
+  },
+  {
+   "group": "종방향",
+   "name": "TFollowGap1",
+   "title": "T-FOLLOW GAP1",
+   "descr": "해당 GAP의 추종시간(×0.01초)입니다. 값 증가(+): 앞차와 멀어짐 / 값 감소(-): 앞차와 가까워짐.",
+   "min": 70,
+   "max": 300,
+   "default": 110,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "TFollowGap2",
+   "title": "T-FOLLOW GAP2",
+   "descr": "해당 GAP의 추종시간(×0.01초)입니다. 값 증가(+): 앞차와 멀어짐 / 값 감소(-): 앞차와 가까워짐.",
+   "min": 70,
+   "max": 300,
+   "default": 120,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "TFollowGap3",
+   "title": "T-FOLLOW GAP3",
+   "descr": "해당 GAP의 추종시간(×0.01초)입니다. 값 증가(+): 앞차와 멀어짐 / 값 감소(-): 앞차와 가까워짐.",
+   "min": 70,
+   "max": 300,
+   "default": 140,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "TFollowGap4",
+   "title": "T-FOLLOW GAP4",
+   "descr": "해당 GAP의 추종시간(×0.01초)입니다. 값 증가(+): 앞차와 멀어짐 / 값 감소(-): 앞차와 가까워짐.",
+   "min": 70,
+   "max": 300,
+   "default": 160,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "LongControlEnabled",
+   "title": "LONGITUDINAL CONTROL",
+   "descr": "켜짐: 배선 개조가 완료된 현대·기아 차량에서 오픈파일럿이 가속과 제동을 제어합니다. 배선 개조가 안 된 차량에서는 켜지 마십시오.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "MixRadarInfo",
+   "title": "RADAR / VISION ACCEL BLEND",
+   "descr": "켜짐: 레이더 앞차와 비전 모델의 가속도 변화를 혼합해 출발·감속 반응을 보완합니다. / 꺼짐: 레이더 정보를 우선합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "종방향",
+   "name": "MyDrivingMode",
+   "title": "CURRENT DRIVING MODE",
+   "descr": "1: SAFE / 2: ECO / 3: NORMAL / 4: FAST. 주행 중 즉시 반영됩니다.",
+   "min": 1,
+   "max": 4,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "CustomSteerRatio",
+   "title": "SR",
+   "descr": "조향비(×0.01)입니다. 값 증가(+): 같은 커브에서 조향량이 커짐 / 값 감소(-): 조향량이 작아짐.\n실시간 조향비 사용이 켜져 있으면 이 값 대신 학습값을 사용합니다.\n범위: 1000 ~ 2000  /  기본값: 1650 (=16.50)",
+   "min": 1000,
+   "max": 2000,
+   "default": 1650,
+   "unit": 10
+  },
+  {
+   "group": "횡방향",
+   "name": "SteerActuatorDelay",
+   "title": "SAD",
+   "descr": "조향 지연 보정값(×0.01초)입니다. 값 증가(+): 더 미리 조향 / 값 감소(-): 조향 시작이 늦어짐.\n너무 높으면 커브 안쪽으로 치우치고 너무 낮으면 바깥쪽으로 밀릴 수 있습니다.\n범위: 0 ~ 80  /  기본값: 25 (=0.25초, 차량 정의값)",
+   "min": 0,
+   "max": 80,
+   "default": 25,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueKpV",
+   "title": "TORQUE KP",
+   "descr": "현재 조향오차 반응값(×0.01)입니다. 값 증가(+): 조향 반응이 강하고 빠름 / 값 감소(-): 부드럽고 느림. 기본값: 100 (=1.00, 차량 정의값과 동일).",
+   "min": 0,
+   "max": 500,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueKiV",
+   "title": "TORQUE KI",
+   "descr": "누적 조향오차 보정값(×0.01)입니다. 값 증가(+): 지속 오차를 빨리 보정 / 값 감소(-): 천천히 보정.\n값이 크면 긴 커브에서 적분이 쌓여 안쪽으로 파고들 수 있습니다.\nDH 차량 정의 기본값: 10 (=0.10).",
+   "min": 0,
+   "max": 200,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueKf",
+   "title": "TORQUE KF",
+   "descr": "목표 조향토크 반영값(×0.01)입니다. 값 증가(+): 전체 조향 명령이 강해짐 / 값 감소(-): 약해짐. 기본값: 100 (=1.00, 차량 정의값과 동일).",
+   "min": 0,
+   "max": 200,
+   "default": 100,
+   "unit": 5
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueKd",
+   "title": "TORQUE KD",
+   "descr": "급격한 조향변화 억제값(×0.01)입니다. 값 증가(+): 변화가 억제되어 안정적이나 둔해짐 / 값 감소(-): 반응이 빨라짐. 기본값: 0.",
+   "min": 0,
+   "max": 200,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "횡방향",
+   "name": "LatAccelFrictionFactor",
+   "title": "LAT ACCEL FRICTION FACTOR",
+   "descr": "횡가속도 오차를 마찰보상에 반영하는 비율(×0.01)입니다. 값 증가(+): 커브 조향 반응이 강해짐 / 값 감소(-): 부드러워짐. 기본값: 70.",
+   "min": 0,
+   "max": 300,
+   "default": 70,
+   "unit": 5
+  },
+  {
+   "group": "횡방향",
+   "name": "LatJerkFrictionFactor",
+   "title": "LAT JERK FRICTION FACTOR",
+   "descr": "예측 횡저크 반영비율(×0.01)입니다. 값 증가(+): 커브 진입 조향이 빨라짐 / 값 감소(-): 진입 반응이 느려짐 / 0: 사용 안 함. 기본값: 40.",
+   "min": 0,
+   "max": 200,
+   "default": 40,
+   "unit": 5
+  },
+  {
+   "group": "횡방향",
+   "name": "AutoLaneChangeSpeed",
+   "title": "AUTO LANE CHANGE MIN SPEED",
+   "descr": "자동·방향지시등 차선변경 허용 최저속도(km/h)입니다. 값 증가(+): 더 높은 속도에서만 작동 / 값 감소(-): 저속에서도 작동.",
+   "min": 0,
+   "max": 100,
+   "default": 50,
+   "unit": 10
+  },
+  {
+   "group": "횡방향",
+   "name": "UseLiveSteerRatio",
+   "title": "LIVE STEER RATIO",
+   "descr": "켜짐: liveParameters가 학습한 조향비 사용 / 꺼짐: 위의 고정 조향비 사용.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueCustom",
+   "title": "CUSTOM TORQUE CONTROL",
+   "descr": "켜짐: 아래 토크 수동값 적용 / 꺼짐: 차량 정의값 사용.\n차량 정의값 = torque_data/params.yaml 의 GENESIS 2015-2016 (FACTOR 2.747 / FRICTION 0.098)\n+ kp 1.00 / ki 0.10 / kf 1.00. 코드에 있는 값이라 화면에서는 못 바꿉니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "LaneChangeEnabled",
+   "title": "LANE CHANGE ASSIST",
+   "descr": "켜짐: 방향지시등과 운전자 조향 입력으로 차선변경을 보조합니다. 주변 차량의 안전 여부는 운전자가 직접 확인해야 합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "AutoLaneChangeEnabled",
+   "title": "AUTO LANE CHANGE",
+   "descr": "켜짐: 방향지시등 작동 후 별도의 핸들 입력 없이 차선변경을 시작합니다. 시험 기능이므로 주변을 직접 확인하십시오.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "KeepSteeringTurnSignals",
+   "title": "KEEP STEERING WITH BLINKER",
+   "descr": "켜짐: 방향지시등 작동 중에도 조향 제어를 유지합니다. / 꺼짐: 차량 조건에 따라 조향이 제한될 수 있습니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueAccelFactor",
+   "title": "LAT ACCEL FACTOR (x1000)",
+   "descr": "횡가속도 대비 토크 계수 x1000. 2700 = 2.70.\n값 증가(+): 조향이 약해짐 / 값 감소(-): 조향이 강해짐. 범위 500~4500.",
+   "min": 500,
+   "max": 4500,
+   "default": 2747,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "LateralTorqueFriction",
+   "title": "FRICTION (x1000)",
+   "descr": "정지마찰 보상값 x1000. 80 = 0.080.\n값 증가(+): 중앙 부근 반응이 빨라짐 / 너무 크면 직진에서 흔들림. 범위 0~200.",
+   "min": 0,
+   "max": 200,
+   "default": 98,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "AdjustLaneOffset",
+   "title": "AUTO LANE OFFSET (cm)",
+   "descr": "좌우 여유공간이 비대칭일 때 여유 있는 쪽으로 경로 이동. 0=끔, 0~40cm.",
+   "min": 0,
+   "max": 40,
+   "default": 0,
+   "unit": 5
+  },
+  {
+   "group": "횡방향",
+   "name": "LanelessOffset",
+   "title": "LANELESS OFFSET",
+   "descr": "레인리스(차선 미사용)에서만 적용되는 좌우보정(cm)입니다. 양수(+): 왼쪽 / 음수(-): 오른쪽. 레인모드에는 영향이 없습니다.",
+   "min": -30,
+   "max": 30,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "DynamicLaneProfile",
+   "title": "DYNAMIC LANE PROFILE",
+   "descr": "0: 차선 사용 / 1: 차선 미사용(E2E) / 2: 자동 전환.",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "횡방향",
+   "name": "AutoLaneChangeTimer",
+   "title": "AUTO LANE CHANGE DELAY",
+   "descr": "0: 즉시 / 1: 0.1s / 2: 0.5s / 3: 1.0s / 4: 1.5s / 5: 2.0s.",
+   "min": 0,
+   "max": 5,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "NavigationOnOpenpilot",
+   "title": "NAVIGATION ON OPENPILOT",
+   "descr": "티맵 경로 기반 회전조향·회전감속과 분기·권장차로 차선변경을 하나로 수행합니다. 차선변경은 modelV2 현재차로, 차로 수, 도로경계와 BSD가 모두 확실할 때 한 차로씩만 작동합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "NooMode",
+   "title": "NOO MODE",
+   "descr": "NOO 안에서 쓸 기능 선택. 0: 회전조향+자동차선변경 / 1: 회전조향만 / 2: 자동차선변경만. 1·2 선택시 나머지는 회전감속까지 함께 꺼집니다.",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "NooTurnSpeed",
+   "title": "NOO TURN SPEED",
+   "descr": "NOO 회전 구간 목표속도(km/h)입니다. 값 증가(+): 더 빠르게 회전 / 값 감소(-): 더 많이 감속.",
+   "min": 30,
+   "max": 60,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "커브내비",
+   "name": "NooTurnEndTime",
+   "title": "NOO DECEL TIMING",
+   "descr": "NOO 회전감속 준비시간(초)입니다. 값 증가(+): 더 일찍 감속 시작 / 값 감소(-): 회전에 가까워져 감속.",
+   "min": 2,
+   "max": 12,
+   "default": 6,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "AutoCurveSpeedFactor",
+   "title": "VISION CURVE SPEED FACTOR",
+   "descr": "비전 모델의 커브 판단 강도입니다. 값 증가(+): 커브에서 더 많이 감속 / 값 감소(-): 감속을 줄임.",
+   "min": 50,
+   "max": 300,
+   "default": 120,
+   "unit": 5
+  },
+  {
+   "group": "커브내비",
+   "name": "AutoCurveSpeedLowerLimit",
+   "title": "MINIMUM CURVE SPEED",
+   "descr": "비전·티맵 커브 목표속도의 하한입니다. 값 증가(+): 커브 속도가 빨라짐 / 값 감소(-): 더 낮은 속도까지 감속.",
+   "min": 5,
+   "max": 80,
+   "default": 30,
+   "unit": 5
+  },
+  {
+   "group": "커브내비",
+   "name": "MapTurnSpeedFactor",
+   "title": "TMAP CURVE SPEED FACTOR",
+   "descr": "티맵 경로의 커브 목표속도 비율입니다. 값 증가(+): 커브 속도가 빨라지고 감속이 줄어듦 / 값 감소(-): 더 느리게 통과.",
+   "min": 50,
+   "max": 150,
+   "default": 90,
+   "unit": 5
+  },
+  {
+   "group": "커브내비",
+   "name": "AutoNaviSpeedDecelRate",
+   "title": "MAP CURVE DECEL RATE",
+   "descr": "티맵 커브 진입 감속 강도(×0.01m/s²)입니다. 값 증가(+): 늦고 강하게 감속 / 값 감소(-): 일찍 부드럽게 감속.",
+   "min": 10,
+   "max": 300,
+   "default": 120,
+   "unit": 10
+  },
+  {
+   "group": "커브내비",
+   "name": "AutoNaviSpeedCtrlEnd",
+   "title": "CAMERA DECEL END TIME (SEC)",
+   "descr": "C3 방식의 카메라 감속 완료지점입니다. 값 증가(+): 카메라에서 더 먼 지점까지 감속을 완료합니다.",
+   "min": 3,
+   "max": 20,
+   "default": 7,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "AutoNaviSpeedBumpTime",
+   "title": "SPEED BUMP DECEL TIME (SEC)",
+   "descr": "C3 방식의 방지턱 감속 완료지점입니다. 목표속도로 이 시간만큼 주행할 거리 전에 감속을 완료합니다.",
+   "min": 1,
+   "max": 50,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "AutoNaviSpeedBumpSpeed",
+   "title": "SPEED BUMP TARGET SPEED (km/h)",
+   "descr": "C3 방식의 고정 방지턱 통과 목표속도입니다. 카메라 안전비율은 적용하지 않습니다.",
+   "min": 10,
+   "max": 100,
+   "default": 35,
+   "unit": 5
+  },
+  {
+   "group": "커브내비",
+   "name": "TurnVisionControl",
+   "title": "VISION / MAP CURVE CONTROL",
+   "descr": "켜짐: 비전 모델과 티맵 경로 중 더 낮은 커브 목표속도를 적용합니다. / 꺼짐: 커브 자동감속을 사용하지 않습니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "StockNaviDecelEnabled",
+   "title": "STOCK NAVI DECEL",
+   "descr": "켜짐: 순정 내비게이션의 제한속도·카메라 정보를 종방향 감속에 사용합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "커브내비",
+   "name": "HapticFeedbackWhenSpeedCamera",
+   "title": "SPEED CAMERA HAPTIC",
+   "descr": "켜짐: 과속카메라가 감지되면 핸들 진동으로 알립니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudFps",
+   "title": "S9 HUD FPS",
+   "descr": "S9 HUD 렌더링 속도: 0 정지 / 1~15 fps, 기본값 10",
+   "min": 0,
+   "max": 15,
+   "default": 10,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudMapFps",
+   "title": "S9 HUD MAP FPS",
+   "descr": "S9에 전송되는 티맵 지도 갱신 속도: 2~5 fps, 기본값 5",
+   "min": 2,
+   "max": 5,
+   "default": 5,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudBrightness",
+   "title": "S9 HUD BRIGHTNESS",
+   "descr": "S9 외부 HUD 밝기: 0 자동 / 1~100 고정",
+   "min": 0,
+   "max": 100,
+   "default": 65,
+   "unit": 5
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudJpegQuality",
+   "title": "S9 HUD JPEG QUALITY",
+   "descr": "S9에서 생성하는 HUD JPEG 품질: 20~95",
+   "min": 20,
+   "max": 95,
+   "default": 58,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudOutputTarget",
+   "title": "S9 HUD OUTPUT TARGET",
+   "descr": "1: 외부 HUD / 2: S9 화면 / 3: 동시 출력",
+   "min": 1,
+   "max": 3,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudOutputMode",
+   "title": "S9 HUD OUTPUT MODE",
+   "descr": "1: 주행 / 지도 / 시스템   2: 실시간 디버그   3: S9 리모트(폰 상태·USB 진단)",
+   "min": 1,
+   "max": 3,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudLayoutMode",
+   "title": "S9 HUD LAYOUT MODE",
+   "descr": "1: 주행 + 티맵 + 시스템 정보 / 2: 주행 + 티맵만(우측 정보판 숨김, 티맵 폭 확장)",
+   "min": 1,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudCarStyle",
+   "title": "S9 HUD CAR STYLE",
+   "descr": "1: 사진 / 2: 3D 박스. 자차와 앞차에 적용됩니다.",
+   "min": 1,
+   "max": 2,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudBsdStyle",
+   "title": "S9 HUD BSD STYLE",
+   "descr": "1: 경계막대만 / 2: 옅은 띠 / 3: 진한 띠. 옆차 앞뒤 위치는 알 수 없어 차선 전체를 표시합니다.",
+   "min": 1,
+   "max": 3,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudRoadSigns",
+   "title": "S9 HUD ROAD SIGNS",
+   "descr": "주행씬 도로 바닥에 그리는 표시입니다.\n0: 끔 / 1: 제한속도만 / 2: 과속방지턱만 / 3: 둘 다",
+   "min": 0,
+   "max": 3,
+   "default": 3,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudRoadZ",
+   "title": "S9 HUD ROAD Z",
+   "descr": "오르막·내리막 표현 강도(%). 100: 모델 값 그대로 / 0: 평지 / 음수: 위아래 반전(오르막이 꺼져 보일 때 -100).",
+   "min": -300,
+   "max": 300,
+   "default": 100,
+   "unit": 10
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudPitchDyn",
+   "title": "S9 HUD PITCH DYN",
+   "descr": "가감속·요철로 차가 기울 때 수평선이 따라 움직이는 정도(%). 0: 끔(정지 캘리브만), 클수록 화면이 많이 흔들립니다.",
+   "min": 0,
+   "max": 200,
+   "default": 60,
+   "unit": 10
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudBuildings",
+   "title": "S9 HUD BUILDINGS",
+   "descr": "0: 끔 / 1: 켬. 건물은 실제 지형이 아니라 속도감용 장식입니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudTmapIcon",
+   "title": "S9 HUD TMAP ICON",
+   "descr": "1: 티맵이 보내는 회전 아이콘 사용(유턴·분기·고가차도까지 티맵과 동일) / 0: 앱 내장 화살표.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudJunction",
+   "title": "S9 HUD JUNCTION",
+   "descr": "티맵 분기 실사 이미지와 도착정보 바. 0: 끔 / 1: 실사 이미지만 / 2: 실사 + 도착·분·km 바",
+   "min": 0,
+   "max": 2,
+   "default": 2,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudScreenMode",
+   "title": "S9 HUD SCREEN MODE",
+   "descr": "1: 자동(길안내/주행리포트) / 2: 실시간 디버그 / 3: 주행리포트 고정",
+   "min": 1,
+   "max": 3,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudTheme",
+   "title": "S9 HUD THEME",
+   "descr": "0: 자동 / 1: 다크 / 2: 라이트. S9의 시스템·우측 정보 패널에 실시간 적용됩니다.",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudOrientation",
+   "title": "S9 HUD ORIENTATION",
+   "descr": "0: 기본 / 2: 180도 회전",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "unit": 2
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudMirror",
+   "title": "S9 HUD MIRROR",
+   "descr": "0: 기본 / 1: 좌우 미러",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudPathFlip",
+   "title": "S9 HUD PATH FLIP",
+   "descr": "0: 기본 / 1: 차선·경로 리본·옆차 위치만 좌우반전 (화면 전체 미러와는 별개, 진단용)",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudLanguage",
+   "title": "S9 HUD LANGUAGE",
+   "descr": "0: 한국어 / 1: English",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHudRadarInfo",
+   "title": "S9 HUD RADAR INFO",
+   "descr": "0: 숨김 / 1,3: 앞차 상대속도 / 2,4: 앞차 거리+상대속도",
+   "min": 0,
+   "max": 4,
+   "default": 4,
+   "unit": 1
+  },
+  {
+   "group": "S9HUD",
+   "name": "EonClusterHud",
+   "title": "S9 EXTERNAL HUD",
+   "descr": "EON 주행 데이터 전송과 S9의 TURZX USB HUD 출력을 켜거나 끕니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "화면",
+   "name": "ShowPathWidth",
+   "title": "PATH WIDTH (cm)",
+   "descr": "차량 중심에서 경로 한쪽 끝까지의 표시 폭입니다. 값 증가(+): 경로가 넓게 표시 / 값 감소(-): 좁게 표시. 제어 경로에는 영향이 없습니다.",
+   "min": 30,
+   "max": 150,
+   "default": 90,
+   "unit": 10
+  },
+  {
+   "group": "화면",
+   "name": "ShowCarrotHud",
+   "title": "LEFT HUD PANEL",
+   "descr": "켜짐: 속도·크루즈·GAP·기어·주행모드·제한속도 HUD를 표시합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "화면",
+   "name": "ShowMapboxMap",
+   "title": "RIGHT MAP IMAGE",
+   "descr": "켜짐: 우측 Mapbox 지도와 NOO 구간의 티맵 지도 이미지를 표시합니다. / 꺼짐: 지도 이미지를 즉시 숨깁니다. 티맵 방향·거리·카메라 감속 기능은 유지됩니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "화면",
+   "name": "ShowRouteMapAlways",
+   "title": "ALWAYS SHOW ROUTE MAP",
+   "descr": "켜짐: 목적지 경로가 활성화된 동안 NOO 구간이 아니어도 우측 티맵 지도 이미지를 계속 표시합니다. / 꺼짐: NOO 진입 구간에서만 표시합니다. '우측 지도 이미지 표시'가 켜져 있어야 적용됩니다.",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "unit": 1
+  },
+  {
+   "group": "화면",
+   "name": "ShowGearAnimation",
+   "title": "GEAR POPUP ANIMATION",
+   "descr": "켜짐: 변속단이 바뀔 때 중앙 팝업 애니메이션을 표시합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  },
+  {
+   "group": "화면",
+   "name": "ShowPathStatusColor",
+   "title": "PATH STATUS COLOR",
+   "descr": "켜짐: 활성=녹색, 정속=노란색, 가속=주황색, 감속=빨간색, 비활성=검은색으로 표시합니다.",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "unit": 1
+  }
+ ]
+}
