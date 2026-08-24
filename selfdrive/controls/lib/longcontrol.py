@@ -10,10 +10,10 @@ LongCtrlState = car.CarControl.Actuators.LongControlState
 ButtonType = car.CarState.ButtonEvent.Type
 
 # 정차 래치. 완전히 선 뒤에는 플래너가 한 프레임 튀어도 stopping 을 유지한다.
-STANDSTILL_LATCH_SPEED = 0.1
+STANDSTILL_LATCH_SPEED = 0.05
 # 출발은 플래너가 이만큼 "연속으로" 요구해야 인정한다(0.15 s). 레이더·모델
 # 노이즈 한두 프레임은 걸러지고, 진짜 출발은 거의 지연 없이 통과한다.
-STANDSTILL_RELEASE_FRAMES = 15
+STANDSTILL_RELEASE_FRAMES = 10
 
 def long_control_state_trans(CP, active, long_control_state, v_ego, v_target,
                              v_target_1sec, brake_pressed, cruise_standstill,

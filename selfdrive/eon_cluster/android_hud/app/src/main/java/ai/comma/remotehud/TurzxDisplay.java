@@ -27,8 +27,8 @@ import javax.crypto.spec.SecretKeySpec;
  *    유력한 원인.
  *
  *    v0.17/0.18 의 sendJpeg() 은 프레임마다 controlTransfer(0x02, 0x01, 0, ep)
- *    로 CLEAR_FEATURE(ENDPOINT_HALT) 를 보냈다. 카롯파일럿의 파이썬
- *    cluster_usb_display.py 를 따라한 것인데, 두 경우의 의미가 다르다.
+     *    로 CLEAR_FEATURE(ENDPOINT_HALT) 를 보냈다. 기존 파이썬 구현을
+     *    따라한 것인데, 두 경우의 의미가 다르다.
  *
  *      - libusb 의 clear_halt() 는 커널 USBDEVFS_CLEAR_HALT 를 거쳐
  *        usb_clear_halt() 를 부르고, 이때 호스트 컨트롤러 쪽 data toggle 도

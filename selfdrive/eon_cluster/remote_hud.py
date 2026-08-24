@@ -230,8 +230,7 @@ def _finite(value, default=0.0):
 
 
 def _param_bool(params, key, default=False):
-  """Read a boolean Params key. Defined here so remote_hud never depends on
-  eon_cluster.py, which pulls in the direct-mode renderer."""
+  """Read a boolean Params key without coupling telemetry to a UI renderer."""
   try:
     raw = params.get(key)
   except (TypeError, ValueError):
@@ -253,7 +252,7 @@ def _param_int(params, key, default=0, minimum=0, maximum=999):
 
 
 def _alert(controls_state):
-  """controlsState 의 openpilot 이벤트 알림. EON 직접모드 renderer 와 동일한 필드."""
+  """controlsState에서 Android HUD에 필요한 openpilot 이벤트 알림을 추출한다."""
   text1 = str(_field(controls_state, "alertText1", "") or "")
   text2 = str(_field(controls_state, "alertText2", "") or "")
   if not (text1 or text2):

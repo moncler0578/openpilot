@@ -1139,6 +1139,10 @@ public final class HudService extends Service {
         c.drawLine(18f, 129f, 934f, 129f, p);
 
         int save4 = beginElement(c, l, "wheel", 70f, 171f);
+        if (nativeLayoutRendering) {
+            // SET 원과 같은 가로줄에 오도록 같은 보정을 준다.
+            c.translate(0f, -NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
+        }
         drawSteeringWheel(c, p, 70f, 171f, (float) s.optDouble("steer", 0d), enabled);
         c.restoreToCount(save4);
 
@@ -1151,6 +1155,10 @@ public final class HudService extends Service {
         c.restoreToCount(save5);
 
         int save6 = beginElement(c, l, "camera", 882f, 171f);
+        if (nativeLayoutRendering) {
+            // 핸들·SET 과 같은 가로줄 유지.
+            c.translate(0f, -NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
+        }
         int bumpDist = stale ? 0 : (int) Math.round(s.optDouble("bumpDist", 0d));
         if (bumpDist > 0) {
             // EON onroad.cc drawSpeedLimit 과 같은 규칙: 방지턱이 있으면
@@ -1166,7 +1174,9 @@ public final class HudService extends Service {
         }
         c.restoreToCount(save6);
 
-        int nooSave = beginElement(c, l, "noo", NOO_CX, NOO_CY);
+        // 세로 기준점을 TPMS 카드와 같은 415 로 맞춘다. 서로 다른 기준점을 쓰면
+        // 순정 화면의 위젯 배율 역보정에서 그 차이만큼 사이가 벌어진다.
+        int nooSave = beginElement(c, l, "noo", NOO_CX, 415f);
         if (!stale) {
             drawNooTurn(c, p, s);
         }
@@ -1883,10 +1893,11 @@ public final class HudService extends Service {
     private static final float JUNCTION_W = 340f;
     private static final float JUNCTION_LEFT = MAP_LEFT + 2f;
     /** 도착정보 바(위끝 396) 바로 위까지. */
-    private static final float JUNCTION_BOTTOM_MAX = 394f;
+    private static final float JUNCTION_BOTTOM_MAX = 400f;
     /** 도착정보 바는 실사 이미지와 같은 폭·같은 왼쪽 기준. */
-    private static final float ETA_TOP = 396f;
     private static final float ETA_H = 58f;
+    /** 패널 아래끝(462)에 딱 붙인다. */
+    private static final float ETA_TOP = HEIGHT - ETA_H;
 
     /**
      * 실제 회전 그림(turn_l/turn_r)을 중심 (cx, cy) 에 height 픽셀로 그린다.
@@ -2747,26 +2758,33 @@ public final class HudService extends Service {
             c.clipRect(MAP_LEFT, 0f, mapRight(), HEIGHT);
         }
         JSONObject l = layout(s);
-        int save = beginElement(c, l, "tbt1", 1139f, 71f);
+        // 배너 위끝(0)이 곧 기준점이어야 패널 최상단에 딱 붙는다. 기준점이 71 이면
+        // 배율이 1 이 아닐 때 71x(1-배율) 만큼 아래로 밀린다.
+        int save = beginElement(c, l, "tbt1", 1139f, 0f);
         float tbtBottom = drawTbtBanner(c, p, s.optJSONObject("navi"), 962f, 0f);
         c.restoreToCount(save);
-        int save2 = beginElement(c, l, "tbt2", 1144f, 190f);
-        if (nativeLayoutRendering) {
-            c.translate(0f, -NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
-        }
+        // 세로 기준점(py)을 1행과 같은 71 로 맞춘다. 순정 화면에서는
+        // beginElement 가 py 를 중심으로 위젯 배율을 역보정하는데, 1행(71)과
+        // 2행(190)의 기준점이 119px 떨어져 있어서 배율이 1 이 아닌 순간
+        // 그 차이만큼(119 x (1-배율)) 두 배너 사이가 벌어졌다.
+        // 기준점을 1행과 같은 0 으로 맞춘 뒤로는 별도 보정이 필요 없다.
+        // 예전 보정(-18px)이 남아 있으면 1행 아래끝을 파고들어 겹친다.
+        int save2 = beginElement(c, l, "tbt2", 1144f, 0f);
         drawTbtNext(c, p, s.optJSONObject("navi"), 962f, tbtBottom);
         c.restoreToCount(save2);
-        int junctionSave = beginElement(c, l, "junction", MAP_LEFT + 172f, 310f);
+        // 분기 실사도 1행 바로 아래에 붙어야 하므로 같은 기준점을 쓴다.
+        int junctionSave = beginElement(c, l, "junction", MAP_LEFT + 172f, 0f);
         // 분기 실사는 1행 배너 바로 아래에서 시작해 2행(다음 회전) 배너를 덮는다.
         // 그리기 순서상 2행보다 뒤라 별도 처리 없이 위에 얹힌다.
         drawJunction(c, p, tbtBottom);
         c.restoreToCount(junctionSave);
-        int etaSave = beginElement(c, l, "eta", MAP_LEFT + 172f, 424f);
+        // 기준점을 패널 아래끝으로 두면 배율이 어떻든 아래끝에 붙은 채로 남는다.
+        int etaSave = beginElement(c, l, "eta", MAP_LEFT + 172f, (float) HEIGHT);
         drawNaviEta(c, p, s);
         c.restoreToCount(etaSave);
 
-        int save3 = beginElement(c, l, "lane", 1395f, 408f);
-        drawNativeOverlay(c, p, lane, 1130f, 366f, 1660f, 450f, Paint.Align.CENTER);
+        int save3 = beginElement(c, l, "lane", 1395f, (float) HEIGHT);
+        drawNativeOverlay(c, p, lane, 1130f, 378f, 1660f, (float) HEIGHT, Paint.Align.CENTER);
         c.restoreToCount(save3);
 
         // NOO 안내는 지도 패널이 아니라 주행 패널 중앙에 그린다(drawNooTurn).

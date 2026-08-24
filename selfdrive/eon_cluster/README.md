@@ -5,7 +5,7 @@ This branch uses one external-HUD path only:
 - EON publishes compact driving telemetry over UDP 7210.
 - EON forwards native compressed TMAP assets over TCP 7211.
 - The Galaxy S9 renders the dashboard, creates the HUD JPEG, and sends it to the TURZX USB display.
-- The legacy direct-EON renderer and USB output process are not started.
+- The legacy direct-EON renderer and USB output process have been removed.
 
 Enable it with the **S9 외부 HUD 사용** toggle. The following Params are sent to the S9 at runtime:
 

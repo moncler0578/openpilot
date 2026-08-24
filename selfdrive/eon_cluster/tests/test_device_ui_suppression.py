@@ -140,10 +140,10 @@ def test_s9_tmap_first_switch_uses_nmirror_favorite_and_internal_fullscreen_acti
   assert "AppPrefs.DISPLAY_PROFILE_GENESIS_9_2" in service
   assert "PHONE_8_WIDTH = 800" in service
   assert "PHONE_8_HEIGHT = 480" in service
-  assert "PHONE_8_SIDEBAR = 0" in service
+  assert "PHONE_8_SIDEBAR" not in service
   assert "PHONE_9_WIDTH = 1280" in service
   assert "PHONE_9_HEIGHT = 720" in service
-  assert "PHONE_9_SIDEBAR = 0" in service
+  assert "PHONE_9_SIDEBAR" not in service
   assert "renderNativePhone(currentState, AppPrefs.getDisplayProfile(this)," in service
   assert "profile == service.phoneNativeProfile" in service
   assert "service.phoneNativeFrame" in service

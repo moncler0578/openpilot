@@ -7,8 +7,8 @@ android {
     applicationId "ai.comma.remotehud"
     minSdk 26
     targetSdk 35
-    versionCode 80
-    versionName "0.65-layout-tune"
+    versionCode 85
+    versionName "0.70-row-align"
   }
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_11

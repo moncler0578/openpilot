@@ -449,16 +449,6 @@ class Controls:
       if self.sm.rcv_frame['managerState'] and (self._not_running_processes - IGNORE_PROCESSES):
         self.events.add(EventName.processNotRunning)
 
-    # Only allow engagement with brake pressed when stopped behind another stopped car
-    speeds = self.sm['longitudinalPlan'].speeds
-    if len(speeds) > 1:
-      v_future = speeds[-1]
-    else:
-      v_future = 100.0
-    #if CS.brakePressed and v_future >= self.CP.vEgoStarting \
-    #  and self.CP.openpilotLongitudinalControl and CS.vEgo < 0.3:
-    #  self.events.add(EventName.noTarget)
-
     self.update_reverse_reengage(CS)
 
   def update_reverse_reengage(self, CS):

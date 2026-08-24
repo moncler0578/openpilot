@@ -2,7 +2,6 @@
 import datetime
 import os
 import signal
-import subprocess
 import sys
 import traceback
 from multiprocessing import Process
@@ -30,9 +29,6 @@ sys.path.append(os.path.join(BASEDIR, "pyextra"))
 def manager_init() -> None:
   # update system time from panda
   set_time(cloudlog)
-
-  # save boot log
-  #subprocess.call("./bootlog", cwd=os.path.join(BASEDIR, "selfdrive/loggerd"))
 
   params = Params()
   params.clear_all(ParamKeyType.CLEAR_ON_MANAGER_START)

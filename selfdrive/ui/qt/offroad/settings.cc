@@ -42,19 +42,22 @@
 #include <QFile>
 #include <QDir>
 
-// ── Offset Total Control ─────────────────────────────────────────
-OffsetTotalControl::OffsetTotalControl(const QString &title,
-                                       const QString &desc,
-                                       const QString &icon,
-                                       QWidget *parent)
-    : AbstractControl(title, desc, icon, parent) {
+namespace {
 
-  QWidget *btn_widget = new QWidget();
-  QHBoxLayout *btn_layout = new QHBoxLayout(btn_widget);
-  btn_layout->setContentsMargins(0, 8, 0, 8);
-  btn_layout->setSpacing(12);
+struct StepperWidgets {
+  QWidget *container;
+  QPushButton *minus;
+  QLabel *value;
+  QPushButton *plus;
+};
 
-  const QString btn_style = R"(
+StepperWidgets makeStepperWidgets(int value_width) {
+  QWidget *container = new QWidget();
+  QHBoxLayout *layout = new QHBoxLayout(container);
+  layout->setContentsMargins(0, 8, 0, 8);
+  layout->setSpacing(12);
+
+  const QString button_style = R"(
     QPushButton {
       font-size: 48px;
       font-weight: bold;
@@ -69,24 +72,38 @@ OffsetTotalControl::OffsetTotalControl(const QString &title,
     QPushButton:pressed { background-color: #4a4a4a; }
   )";
 
-  minus_btn = new QPushButton("−");
-  minus_btn->setStyleSheet(btn_style);
+  QPushButton *minus = new QPushButton("−");
+  minus->setStyleSheet(button_style);
+  QLabel *value = new QLabel();
+  value->setAlignment(Qt::AlignCenter);
+  value->setStyleSheet(QString("font-size: 40px; color: #ffffff; min-width: %1px;")
+                           .arg(value_width));
+  QPushButton *plus = new QPushButton("+");
+  plus->setStyleSheet(button_style);
+
+  layout->addStretch();
+  layout->addWidget(minus);
+  layout->addWidget(value);
+  layout->addWidget(plus);
+  return {container, minus, value, plus};
+}
+
+}  // namespace
+
+// ── Offset Total Control ─────────────────────────────────────────
+OffsetTotalControl::OffsetTotalControl(const QString &title,
+                                       const QString &desc,
+                                       const QString &icon,
+                                       QWidget *parent)
+    : AbstractControl(title, desc, icon, parent) {
+
+  const StepperWidgets stepper = makeStepperWidgets(140);
+  minus_btn = stepper.minus;
+  value_label = stepper.value;
+  plus_btn = stepper.plus;
   connect(minus_btn, &QPushButton::clicked, [=]() { changeValue(-1); });
-
-  value_label = new QLabel();
-  value_label->setAlignment(Qt::AlignCenter);
-  value_label->setStyleSheet("font-size: 40px; color: #ffffff; min-width: 140px;");
-
-  plus_btn = new QPushButton("+");
-  plus_btn->setStyleSheet(btn_style);
   connect(plus_btn, &QPushButton::clicked, [=]() { changeValue(+1); });
-
-  btn_layout->addStretch();
-  btn_layout->addWidget(minus_btn);
-  btn_layout->addWidget(value_label);
-  btn_layout->addWidget(plus_btn);
-
-  qobject_cast<QVBoxLayout*>(layout())->addWidget(btn_widget);
+  qobject_cast<QVBoxLayout*>(layout())->addWidget(stepper.container);
   refresh();
 }
 
@@ -116,44 +133,13 @@ AdjustLaneOffsetControl::AdjustLaneOffsetControl(const QString &title,
                                                  QWidget *parent)
     : AbstractControl(title, desc, icon, parent) {
 
-  QWidget *btn_widget = new QWidget();
-  QHBoxLayout *btn_layout = new QHBoxLayout(btn_widget);
-  btn_layout->setContentsMargins(0, 8, 0, 8);
-  btn_layout->setSpacing(12);
-
-  const QString btn_style = R"(
-    QPushButton {
-      font-size: 48px;
-      font-weight: bold;
-      border-radius: 14px;
-      background-color: #393939;
-      color: #ffffff;
-      min-width: 150px;
-      max-width: 150px;
-      min-height: 100px;
-      max-height: 100px;
-    }
-    QPushButton:pressed { background-color: #4a4a4a; }
-  )";
-
-  minus_btn = new QPushButton("−");
-  minus_btn->setStyleSheet(btn_style);
+  const StepperWidgets stepper = makeStepperWidgets(140);
+  minus_btn = stepper.minus;
+  value_label = stepper.value;
+  plus_btn = stepper.plus;
   connect(minus_btn, &QPushButton::clicked, [=]() { changeValue(-1); });
-
-  value_label = new QLabel();
-  value_label->setAlignment(Qt::AlignCenter);
-  value_label->setStyleSheet("font-size: 40px; color: #ffffff; min-width: 140px;");
-
-  plus_btn = new QPushButton("+");
-  plus_btn->setStyleSheet(btn_style);
   connect(plus_btn, &QPushButton::clicked, [=]() { changeValue(+1); });
-
-  btn_layout->addStretch();
-  btn_layout->addWidget(minus_btn);
-  btn_layout->addWidget(value_label);
-  btn_layout->addWidget(plus_btn);
-
-  qobject_cast<QVBoxLayout*>(layout())->addWidget(btn_widget);
+  qobject_cast<QVBoxLayout*>(layout())->addWidget(stepper.container);
   refresh();
 }
 
@@ -180,44 +166,13 @@ LanelessOffsetControl::LanelessOffsetControl(const QString &title,
                                              QWidget *parent)
     : AbstractControl(title, desc, icon, parent) {
 
-  QWidget *btn_widget = new QWidget();
-  QHBoxLayout *btn_layout = new QHBoxLayout(btn_widget);
-  btn_layout->setContentsMargins(0, 8, 0, 8);
-  btn_layout->setSpacing(12);
-
-  const QString btn_style = R"(
-    QPushButton {
-      font-size: 48px;
-      font-weight: bold;
-      border-radius: 14px;
-      background-color: #393939;
-      color: #ffffff;
-      min-width: 150px;
-      max-width: 150px;
-      min-height: 100px;
-      max-height: 100px;
-    }
-    QPushButton:pressed { background-color: #4a4a4a; }
-  )";
-
-  minus_btn = new QPushButton("−");
-  minus_btn->setStyleSheet(btn_style);
+  const StepperWidgets stepper = makeStepperWidgets(140);
+  minus_btn = stepper.minus;
+  value_label = stepper.value;
+  plus_btn = stepper.plus;
   connect(minus_btn, &QPushButton::clicked, [=]() { changeValue(-1); });
-
-  value_label = new QLabel();
-  value_label->setAlignment(Qt::AlignCenter);
-  value_label->setStyleSheet("font-size: 40px; color: #ffffff; min-width: 140px;");
-
-  plus_btn = new QPushButton("+");
-  plus_btn->setStyleSheet(btn_style);
   connect(plus_btn, &QPushButton::clicked, [=]() { changeValue(+1); });
-
-  btn_layout->addStretch();
-  btn_layout->addWidget(minus_btn);
-  btn_layout->addWidget(value_label);
-  btn_layout->addWidget(plus_btn);
-
-  qobject_cast<QVBoxLayout*>(layout())->addWidget(btn_widget);
+  qobject_cast<QVBoxLayout*>(layout())->addWidget(stepper.container);
   refresh();
 }
 
@@ -354,8 +309,7 @@ static QString findNtuneTorqueFileS() {
   return "/data/ntune/lat_torque_v4.json";
 }
 
-static void writeNtuneTorqueValueS(const QString &key, double value) {
-  QString path = findNtuneTorqueFileS();
+static void writeNtuneJsonValue(const QString &path, const QString &key, double value) {
   QJsonObject obj;
   QFile f(path);
   if (f.open(QIODevice::ReadOnly)) {
@@ -367,30 +321,18 @@ static void writeNtuneTorqueValueS(const QString &key, double value) {
   if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
     f.close();
-    // nTune.write_config와 동일하게 0666 권한 유지
     f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner |
                      QFileDevice::ReadGroup | QFileDevice::WriteGroup |
                      QFileDevice::ReadOther | QFileDevice::WriteOther);
   }
 }
 
+static void writeNtuneTorqueValueS(const QString &key, double value) {
+  writeNtuneJsonValue(findNtuneTorqueFileS(), key, value);
+}
+
 static void writeNtuneCommonValueS(const QString &key, double value) {
-  QString path = "/data/ntune/common.json";
-  QJsonObject obj;
-  QFile f(path);
-  if (f.open(QIODevice::ReadOnly)) {
-    obj = QJsonDocument::fromJson(f.readAll()).object();
-    f.close();
-  }
-  obj[key] = value;
-  QDir().mkpath("/data/ntune");
-  if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-    f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
-    f.close();
-    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                     QFileDevice::ReadGroup | QFileDevice::WriteGroup |
-                     QFileDevice::ReadOther | QFileDevice::WriteOther);
-  }
+  writeNtuneJsonValue("/data/ntune/common.json", key, value);
 }
 
 // 토크값(latAccelFactor/friction)은 nTune JSON 이 아니라 Params 에 있다.
@@ -428,44 +370,13 @@ ParamValueControlF::ParamValueControlF(const QString &param, const QString &titl
     : AbstractControl(title, desc, icon, parent),
       param_(param), vmin_(vmin), vmax_(vmax), step_(step), decimals_(decimals), vdefault_(vdefault) {
 
-  QWidget *btn_widget = new QWidget();
-  QHBoxLayout *btn_layout = new QHBoxLayout(btn_widget);
-  btn_layout->setContentsMargins(0, 8, 0, 8);
-  btn_layout->setSpacing(12);
-
-  const QString btn_style = R"(
-    QPushButton {
-      font-size: 48px;
-      font-weight: bold;
-      border-radius: 14px;
-      background-color: #393939;
-      color: #ffffff;
-      min-width: 150px;
-      max-width: 150px;
-      min-height: 100px;
-      max-height: 100px;
-    }
-    QPushButton:pressed { background-color: #4a4a4a; }
-  )";
-
-  minus_btn = new QPushButton("−");
-  minus_btn->setStyleSheet(btn_style);
+  const StepperWidgets stepper = makeStepperWidgets(170);
+  minus_btn = stepper.minus;
+  value_label = stepper.value;
+  plus_btn = stepper.plus;
   connect(minus_btn, &QPushButton::clicked, [=]() { changeValue(-1); });
-
-  value_label = new QLabel();
-  value_label->setAlignment(Qt::AlignCenter);
-  value_label->setStyleSheet("font-size: 40px; color: #ffffff; min-width: 170px;");
-
-  plus_btn = new QPushButton("+");
-  plus_btn->setStyleSheet(btn_style);
   connect(plus_btn, &QPushButton::clicked, [=]() { changeValue(+1); });
-
-  btn_layout->addStretch();
-  btn_layout->addWidget(minus_btn);
-  btn_layout->addWidget(value_label);
-  btn_layout->addWidget(plus_btn);
-
-  qobject_cast<QVBoxLayout*>(layout())->addWidget(btn_widget);
+  qobject_cast<QVBoxLayout*>(layout())->addWidget(stepper.container);
   refresh();
 }
 
@@ -514,44 +425,13 @@ NtuneValueControl::NtuneValueControl(const QString &group, const QString &key,
       group_(group), key_(key), vmin_(vmin), vmax_(vmax), step_(step),
       vdefault_(vdefault), decimals_(decimals) {
 
-  QWidget *btn_widget = new QWidget();
-  QHBoxLayout *btn_layout = new QHBoxLayout(btn_widget);
-  btn_layout->setContentsMargins(0, 8, 0, 8);
-  btn_layout->setSpacing(12);
-
-  const QString btn_style = R"(
-    QPushButton {
-      font-size: 48px;
-      font-weight: bold;
-      border-radius: 14px;
-      background-color: #393939;
-      color: #ffffff;
-      min-width: 150px;
-      max-width: 150px;
-      min-height: 100px;
-      max-height: 100px;
-    }
-    QPushButton:pressed { background-color: #4a4a4a; }
-  )";
-
-  minus_btn = new QPushButton("−");
-  minus_btn->setStyleSheet(btn_style);
+  const StepperWidgets stepper = makeStepperWidgets(170);
+  minus_btn = stepper.minus;
+  value_label = stepper.value;
+  plus_btn = stepper.plus;
   connect(minus_btn, &QPushButton::clicked, [=]() { changeValue(-1); });
-
-  value_label = new QLabel();
-  value_label->setAlignment(Qt::AlignCenter);
-  value_label->setStyleSheet("font-size: 40px; color: #ffffff; min-width: 170px;");
-
-  plus_btn = new QPushButton("+");
-  plus_btn->setStyleSheet(btn_style);
   connect(plus_btn, &QPushButton::clicked, [=]() { changeValue(+1); });
-
-  btn_layout->addStretch();
-  btn_layout->addWidget(minus_btn);
-  btn_layout->addWidget(value_label);
-  btn_layout->addWidget(plus_btn);
-
-  qobject_cast<QVBoxLayout*>(layout())->addWidget(btn_widget);
+  qobject_cast<QVBoxLayout*>(layout())->addWidget(stepper.container);
   refresh();
 }
 
