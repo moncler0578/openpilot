@@ -92,8 +92,11 @@ def _packet(sm, *args, **kwargs):
   packet["hudBsdStyle"] = _bounded_int("EonClusterHudBsdStyle", 2, 1, 3)
   packet["hudCarStyle"] = _bounded_int("EonClusterHudCarStyle", 1, 1, 2)
   packet["hudRoadSigns"] = _bounded_int("EonClusterHudRoadSigns", 3, 0, 3)
-  # 1: 티맵이 보내주는 회전 아이콘 사용 / 0: 앱 내장 그림·벡터 화살표 사용
-  packet["hudTmapIcon"] = _bounded_int("EonClusterHudTmapIcon", 1, 0, 1)
+  # 0(기본): 앱 내장 화살표 그림 사용
+  # 1: 티맵 tbt_current_compact 사용 — 다만 이 스트림은 아이콘이 아니라
+  #    "화살표+거리+도로명"이 한 장에 그려진 미니 배너라 아이콘 자리에 넣으면
+  #    검은 박스나 배너 중복으로 보인다. 실물을 확인한 뒤에만 켤 것.
+  packet["hudTmapIcon"] = _bounded_int("EonClusterHudTmapIcon", 0, 0, 1)
   # 0: 끔 / 1: 분기 실사 이미지 / 2: 실사 + 하단 도착정보 바
   packet["hudJunction"] = _bounded_int("EonClusterHudJunction", 2, 0, 2)
   return packet

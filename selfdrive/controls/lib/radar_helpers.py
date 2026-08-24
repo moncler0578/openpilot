@@ -1,6 +1,5 @@
 from common.numpy_fast import mean
 from common.kalman.simple_kalman import KF1D
-from common.filter_simple import StreamingMovingAverage
 
 
 # the longer lead decels, the more likely it will keep decelerating
@@ -8,6 +7,18 @@ from common.filter_simple import StreamingMovingAverage
 _LEAD_ACCEL_TAU = 1.5
 # 이 값보다 작으면 레이더가 앞차 가감속을 아직 판단하지 못한 것으로 본다.
 RADAR_ACCEL_UNDECIDED = 0.1
+
+# Vision acceleration is useful when SCC radar acceleration lags, but replacing
+# the radar value outright can create a brake step when a new/stationary lead is
+# first matched.  Wait for a stable radar track, then blend only a bounded part
+# of the vision correction.  Acceleration gets slightly more assistance so a
+# departing lead is still followed promptly; braking remains radar-dominant.
+VISION_MIX_MIN_TRACK_FRAMES = 5
+VISION_MIX_BRAKE_WEIGHT = 0.20
+VISION_MIX_ACCEL_WEIGHT = 0.30
+VISION_MIX_MAX_ACCEL_DELTA = 1.0
+VISION_MIX_MIN_CLOSING_SPEED = 0.3
+VISION_MIX_MIN_DEPARTURE_SPEED = 0.2
 
 # radar tracks
 SPEED, ACCEL = 0, 1   # Kalman filter states enum
@@ -17,6 +28,34 @@ v_ego_stationary = 4.   # no stationary object flag below this speed
 
 RADAR_TO_CENTER = 2.7   # (deprecated) RADAR is ~ 2.7m ahead from center of car
 RADAR_TO_CAMERA = 1.52   # RADAR is ~ 1.5m ahead from center of mesh frame
+
+
+def blend_radar_vision_accel(radar_accel, vision_accel, model_prob, mix_radar_info,
+                             track_frames, v_rel):
+  """Return a radar-dominant lead acceleration and whether vision was blended.
+
+  New tracks use radar only.  Once the track is stable, vision may add a small,
+  bounded correction when it agrees with radar.  If radar acceleration is not
+  established yet, relative speed must independently confirm the direction.
+  Distance and relative speed themselves always remain radar values.
+  """
+  if not mix_radar_info or model_prob <= 0.5 or track_frames < VISION_MIX_MIN_TRACK_FRAMES:
+    return radar_accel, False
+
+  radar_undecided = abs(radar_accel) < RADAR_ACCEL_UNDECIDED
+  same_direction = radar_accel * vision_accel > 0.0
+  motion_confirms_vision = radar_undecided and (
+    (vision_accel < 0.0 and v_rel < -VISION_MIX_MIN_CLOSING_SPEED) or
+    (vision_accel > 0.0 and v_rel > VISION_MIX_MIN_DEPARTURE_SPEED)
+  )
+  stronger_vision = abs(vision_accel) > abs(radar_accel)
+  if not stronger_vision or not (same_direction or motion_confirms_vision):
+    return radar_accel, False
+
+  accel_delta = max(-VISION_MIX_MAX_ACCEL_DELTA,
+                    min(VISION_MIX_MAX_ACCEL_DELTA, vision_accel - radar_accel))
+  weight = VISION_MIX_BRAKE_WEIGHT if vision_accel < 0.0 else VISION_MIX_ACCEL_WEIGHT
+  return radar_accel + weight * accel_delta, True
 
 class Track():
   def __init__(self, v_lead, kalman_params):
@@ -73,7 +112,6 @@ class Track():
 class Cluster():
   def __init__(self):
     self.tracks = set()
-    self.aLeadKFilter = StreamingMovingAverage(5)
 
   def add(self, t):
     # add the first track
@@ -148,27 +186,24 @@ class Cluster():
   def get_RadarState2(self, model_prob, lead_msg, mix_radar_info):
     vision_accel = float(lead_msg.a[0])
     radar_accel = float(self.aLeadK)
-    # 크기만 비교하면 부호가 반대일 때도 비전 값을 채택한다. 레이더가 앞차
-    # 감속을 보고 있는데 비전 가속도가 한 프레임 튀어 양수가 되면 제동이
-    # 풀려버린다. 방향이 같을 때, 또는 레이더가 아직 판단을 못 한
-    # (거의 0인) 구간에서만 섞는다. 후자가 SCC11 처럼 가속도 필드가 없어
-    # vRel 미분으로 aLeadK 를 만드는 차에서 실제로 이득이 나는 경우다.
-    same_direction = radar_accel * vision_accel > 0.0 or abs(radar_accel) < RADAR_ACCEL_UNDECIDED
-    use_vision_mix = (mix_radar_info and float(lead_msg.prob) > 0.5 and
-                      same_direction and abs(radar_accel) < abs(vision_accel))
-    a_lead_k = self.aLeadKFilter.process(vision_accel if use_vision_mix else radar_accel)
+    track_frames = min((t.cnt for t in self.tracks), default=0)
+    a_lead_k, _ = blend_radar_vision_accel(
+      radar_accel, vision_accel, float(lead_msg.prob), mix_radar_info,
+      track_frames, float(self.vRel))
     return {
       "dRel": float(self.dRel),
       "yRel": float(self.yRel) if not mix_radar_info or self.yRel != 0 else float(-lead_msg.y[0]),
       "vRel": float(self.vRel),
       "vLead": float(self.vLead),
       "vLeadK": float(self.vLeadK),
-      "aLeadK": a_lead_k,
+      "aLeadK": float(a_lead_k),
       "status": True,
       "fcw": self.is_potential_fcw(model_prob),
       "modelProb": model_prob,
       "radar": True,
-      "aLeadTau": 0.3 if use_vision_mix else float(self.aLeadTau)
+      # Keep the radar decay horizon.  The previous fixed 0.3 value made a
+      # one-frame vision deceleration persist and amplified the initial brake.
+      "aLeadTau": float(self.aLeadTau)
     }
 
   def get_RadarState_from_vision(self, lead_msg, v_ego, model_v_ego):

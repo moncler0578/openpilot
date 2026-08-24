@@ -1331,8 +1331,8 @@ CommunityPanel::CommunityPanel(QWidget* parent) : QWidget(parent) {
       "../assets/offroad/icon_road.png", 0, 1, 1, 0, 1, this));
   toggleLayout->addWidget(new ParamValueControlF(
       "EonClusterHudTmapIcon", "S9 HUD TMAP ICON",
-      "1: 티맵이 보내는 회전 아이콘 사용(유턴·분기·고가차도까지 티맵과 동일) / 0: 앱 내장 화살표.",
-      "../assets/offroad/icon_road.png", 0, 1, 1, 0, 1, this));
+      "0(기본): 앱 내장 화살표 그림.\n1: 티맵 compact 스트림 사용 — 이 스트림은 아이콘이 아니라 화살표+거리+도로명이 한 장에 그려진 미니 배너라, 켜면 검은 박스나 배너 중복으로 보일 수 있습니다.",
+      "../assets/offroad/icon_road.png", 0, 1, 1, 0, 0, this));
   toggleLayout->addWidget(new ParamValueControlF(
       "EonClusterHudJunction", "S9 HUD JUNCTION",
       "티맵 분기 실사 이미지와 도착정보 바.\n0: 끔 / 1: 실사 이미지만 / 2: 실사 + 도착·분·km 바",

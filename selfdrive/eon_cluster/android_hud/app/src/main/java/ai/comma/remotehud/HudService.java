@@ -102,9 +102,11 @@ public final class HudService extends Service {
      * 위의 빈 공간에 같은 세로줄로 세운다.
      */
     private static final float NOO_CX = 882f;
-    private static final float NOO_CY = 300f;
+    // 거리 글자 아래끝이 TPMS 카드(위끝 376) 바로 위에 오도록 잡고,
+    // 그 위에 약간의 간격을 두고 화살표를 세운다.
+    private static final float NOO_CY = 306f;
     private static final float NOO_ARROW_SCALE = 1.4f;
-    private static final float NOO_TEXT_DY = 52f;
+    private static final float NOO_TEXT_DY = 62f;
     private static final long NOO_BLINK_MS = 500L;
     private static final float NOO_ICON_H = 62f;
     /** 적용속도 표시는 SET 원(반지름 36) 오른쪽으로 이만큼 띄운다. */
@@ -178,7 +180,7 @@ public final class HudService extends Service {
     /** 1: 주행·지도·시스템 / 2: 실시간 디버그 / 3: S9 리모트 */
     private int configuredOutputMode = 1;
     /** 패킷 hudTmapIcon. 티맵 회전 아이콘을 쓸지(1) 앱 내장 화살표를 쓸지(0). */
-    private volatile boolean tmapIconEnabled = true;
+    private volatile boolean tmapIconEnabled = false;
     /** 패킷 hudJunction. 0: 끔 / 1: 분기 실사 / 2: 실사 + 도착정보 바. */
     private volatile int junctionMode = 2;
     /** 화면 구성 1: 주행·티맵·시스템, 2: 주행·티맵만 */
@@ -703,7 +705,7 @@ public final class HudService extends Service {
         configuredCarStyle = currentState.optInt("hudCarStyle", 1) == 2 ? 2 : 1;
         configuredRoadSigns = Math.max(0, Math.min(3, currentState.optInt("hudRoadSigns", 3)));
         configuredOutputMode = Math.max(1, Math.min(3, currentState.optInt("hudOutputMode", 1)));
-        tmapIconEnabled = currentState.optInt("hudTmapIcon", 1) != 0;
+        tmapIconEnabled = currentState.optInt("hudTmapIcon", 0) != 0;
         junctionMode = Math.max(0, Math.min(2, currentState.optInt("hudJunction", 2)));
         configuredLayoutMode = Math.max(1, Math.min(2, currentState.optInt("hudLayoutMode", 1)));
         int requestedOutputTarget = Math.max(1, Math.min(3,
@@ -2755,8 +2757,8 @@ public final class HudService extends Service {
         drawTbtNext(c, p, s.optJSONObject("navi"), 962f, tbtBottom);
         c.restoreToCount(save2);
         int junctionSave = beginElement(c, l, "junction", MAP_LEFT + 172f, 310f);
-        // 분기 실사가 있으면 2행(다음 회전) 배너를 덮는다. 그리기 순서상 뒤라서
-        // 별도 처리 없이 위에 얹힌다.
+        // 분기 실사는 1행 배너 바로 아래에서 시작해 2행(다음 회전) 배너를 덮는다.
+        // 그리기 순서상 2행보다 뒤라 별도 처리 없이 위에 얹힌다.
         drawJunction(c, p, tbtBottom);
         c.restoreToCount(junctionSave);
         int etaSave = beginElement(c, l, "eta", MAP_LEFT + 172f, 424f);
@@ -2840,15 +2842,15 @@ public final class HudService extends Service {
                 ? String.format(Locale.US, "%.0f", remainDist / 1000.0)
                 : (remainDist > 0 ? String.format(Locale.US, "%.1f", remainDist / 1000.0) : "--");
         int value = Color.rgb(20, 24, 28);
-        int label = Color.rgb(120, 128, 134);
+        int label = Color.rgb(82, 90, 98);
         float[] columns = {left + JUNCTION_W * 0.24f, left + JUNCTION_W * 0.55f,
                            left + JUNCTION_W * 0.80f};
         String[][] cells = {{eta, lang("도착", "ETA")},
                             {minutes, lang("분", "MIN")},
                             {kilometres, "km"}};
         for (int i = 0; i < columns.length; i++) {
-            text(c, p, cells[i][0], columns[i], top + 31f, 29f, value, Paint.Align.CENTER);
-            text(c, p, cells[i][1], columns[i], top + 51f, 16f, label, Paint.Align.CENTER);
+            text(c, p, cells[i][0], columns[i], top + 30f, 30f, value, Paint.Align.CENTER);
+            text(c, p, cells[i][1], columns[i], top + 52f, 21f, label, Paint.Align.CENTER);
         }
     }
 
