@@ -43,6 +43,9 @@ class CarState(CarStateBase):
     self.engine_coolant_temp_seen = False
     self.engine_rpm_seen = False
     self.distance_to_empty_seen = False
+    self.outside_temp_seen = False
+    self.outside_temp_c = -1000.
+    self.parking_sensor_age = 10000
 
     self.apply_steer = 0.
     
@@ -75,14 +78,55 @@ class CarState(CarStateBase):
 
     ret = car.CarState.new_message()
 
-    ret.doorOpen = any([cp.vl["CGW1"]["CF_Gway_DrvDrSw"], cp.vl["CGW1"]["CF_Gway_AstDrSw"],
-                        cp.vl["CGW2"]["CF_Gway_RLDrSw"], cp.vl["CGW2"]["CF_Gway_RRDrSw"]])
+    ret.frontLeftDoorOpen = bool(cp.vl["CGW1"]["CF_Gway_DrvDrSw"])
+    ret.frontRightDoorOpen = bool(cp.vl["CGW1"]["CF_Gway_AstDrSw"])
+    ret.rearLeftDoorOpen = bool(cp.vl["CGW2"]["CF_Gway_RLDrSw"])
+    ret.rearRightDoorOpen = bool(cp.vl["CGW2"]["CF_Gway_RRDrSw"])
+    ret.doorOpen = any([ret.frontLeftDoorOpen, ret.frontRightDoorOpen,
+                        ret.rearLeftDoorOpen, ret.rearRightDoorOpen])
+    ret.trunkOpen = bool(cp.vl["CGW1"]["CF_Gway_TrunkTgSw"])
+    ret.hoodOpen = bool(cp.vl["CGW1"]["CF_Gway_HoodSw"])
+    ret.frontLeftWindowOpen = bool(cp.vl["CGW4"]["CF_Gway_DrvWdwStat"])
+    ret.frontRightWindowOpen = bool(cp.vl["CGW4"]["CF_Gway_AstWdwStat"])
+    ret.rearLeftWindowOpen = bool(cp.vl["CGW4"]["CF_Gway_RLWdwState"])
+    ret.rearRightWindowOpen = bool(cp.vl["CGW4"]["CF_Gway_RRWdwState"])
 
-    ret.seatbeltUnlatched = cp.vl["CGW1"]["CF_Gway_DrvSeatBeltSw"] == 0
+    # CGW4 indicators already include occupant/warning logic for passenger
+    # and rear seats.  Keep the proven driver switch as a fallback.
+    belt_warning = any(int(cp.vl["CGW4"][sig]) != 0 for sig in (
+      "CF_Gway_AstSeatBeltInd", "CF_Gway_RCSeatBeltInd",
+      "CF_Gway_RLSeatBeltInd", "CF_Gway_RRSeatBeltInd"))
+    ret.seatbeltUnlatched = (cp.vl["CGW1"]["CF_Gway_DrvSeatBeltSw"] == 0 or
+                             belt_warning)
 
     if cp.vl_all["CLU13"]["CF_Clu_DTE"]:
       self.distance_to_empty_seen = True
     ret.distanceToEmptyKm = cp.vl["CLU13"]["CF_Clu_DTE"] if self.distance_to_empty_seen else -1.
+    ret.lowFuelWarning = int(cp.vl["CLU13"]["CF_Clu_LowfuelWarn"]) != 0
+
+    # Genesis DH's cluster displays DATC11.CR_Datc_OutTempC.  FATC11 and
+    # mirror-sensor values can be several degrees hotter after heat soak, so
+    # using whichever frame arrived first made the remote HUD disagree with
+    # the cluster.  Keep DH locked to the cluster-ready DATC value; retain the
+    # multi-source fallback for other Hyundai variants.
+    if self.CP.carFingerprint == CAR.GENESIS:
+      outside_temp_sources = (("DATC11", "CR_Datc_OutTempC"),)
+    else:
+      outside_temp_sources = (
+        ("FATC11", "CR_Fatc_OutTemp"),
+        ("FATC11", "CR_Fatc_OutTempSns"),
+        ("DATC11", "CR_Datc_OutTempC"),
+        ("CGW3", "C_MirOutTempSns"),
+      )
+    for msg, sig in outside_temp_sources:
+      values = cp.vl_all[msg][sig]
+      if values:
+        outside_temp = float(values[-1])
+        if -39.5 < outside_temp <= 80.:
+          self.outside_temp_seen = True
+          self.outside_temp_c = outside_temp
+          break
+    ret.outsideTempC = self.outside_temp_c if self.outside_temp_seen else -1000.
 
     self.is_set_speed_in_mph = bool(cp.vl["CLU11"]["CF_Clu_SPEED_UNIT"])
     self.speed_conv_to_ms = CV.MPH_TO_MS if self.is_set_speed_in_mph else CV.KPH_TO_MS
@@ -127,9 +171,33 @@ class CarState(CarStateBase):
     ret.yawRate = cp.vl["ESP12"]["YAW_RATE"]
     ret.leftBlinker, ret.rightBlinker = self.update_blinker_from_lamp(50, cp.vl["CGW1"]["CF_Gway_TurnSigLh"],
                                                             cp.vl["CGW1"]["CF_Gway_TurnSigRh"])
-    ret.lowBeam = bool(cp.vl["CGW1"]["CF_Gway_HeadLampLow"])
+    # DH model years expose manual/AUTO exterior-lamp activity on different
+    # gateway variants.  OR the actual low beam with every available tail
+    # activity source so a manually selected lamp is not missed.
+    ret.lowBeam = any((
+      bool(cp.vl["CGW1"]["CF_Gway_HeadLampLow"]),
+      bool(cp.vl["CGW2"]["CF_Gway_AvTail"]),
+      bool(cp.vl["CGW2"]["CF_Gway_ExtTailAct"]),
+      bool(cp.vl["CGW2"]["CF_Gway_IntTailAct"]),
+      int(cp.vl["GW_IPM_PE_1"]["C_TailLampActivity"]) != 0,
+    ))
     ret.highBeam = bool(cp.vl["CGW1"]["CF_Gway_HeadLampHigh"])
     ret.frontFogLight = bool(cp.vl["CGW1"]["CF_Gway_Frt_Fog_Act"])
+    # Preserve the physical stalk position instead of reducing it to a single
+    # on/off bit.  AUTO and intermittent are separate CGW1 signals depending
+    # on whether the vehicle is equipped with a rain sensor.
+    if cp.vl["CGW1"]["CF_Gway_WiperHighSw"]:
+      ret.wiperMode = 4
+    elif cp.vl["CGW1"]["CF_Gway_WiperLowSw"]:
+      ret.wiperMode = 3
+    elif cp.vl["CGW1"]["CF_Gway_WiperAutoSw"]:
+      ret.wiperMode = 1
+    elif cp.vl["CGW1"]["CF_Gway_WiperIntSw"]:
+      ret.wiperMode = 2
+    elif cp.vl["CGW1"]["CF_Gway_WiperMistSw"]:
+      ret.wiperMode = 5
+    else:
+      ret.wiperMode = 0
     ret.steeringTorque = cp_mdps.vl["MDPS12"]["CR_Mdps_StrColTq"]
     ret.steeringTorqueEps = cp_mdps.vl["MDPS12"]["CR_Mdps_OutTq"] / 10.  # scale to Nm
     ret.steeringPressed = abs(ret.steeringTorque) > self.params.STEER_THRESHOLD
@@ -244,15 +312,40 @@ class CarState(CarStateBase):
     if self.CP.carFingerprint in FEATURES["use_fca"]:
       ret.stockAeb = cp.vl["FCA11"]["FCA_CmdAct"] != 0
       ret.stockFcw = cp.vl["FCA11"]["CF_VSM_Warn"] == 2
+      ret.aebSystemFault = cp.vl["FCA11"]["FCA_Failinfo"] != 0
     else:
-      ret.stockAeb = cp.vl["SCC12"]["AEB_CmdAct"] != 0
-      ret.stockFcw = cp.vl["SCC12"]["CF_VSM_Warn"] == 2
+      ret.stockAeb = cp_scc.vl["SCC12"]["AEB_CmdAct"] != 0
+      ret.stockFcw = cp_scc.vl["SCC12"]["CF_VSM_Warn"] == 2
+      ret.aebSystemFault = cp_scc.vl["SCC12"]["AEB_Failinfo"] != 0
+
+    # Genesis DH exposes the same six parking-distance zones used by the
+    # factory cluster in PAS11.  Keep a separate validity bit so vehicles that
+    # do not publish PAS11 cannot look like a valid all-clear state.
+    pas = cp.vl["PAS11"]
+    if cp.vl_all["PAS11"]["CF_Gway_PASSystemOn"]:
+      self.parking_sensor_age = 0
+    else:
+      self.parking_sensor_age += 1
+    # PAS11 is slower than carState.  Hold the last sample between frames, but
+    # clear it within one second if the optional message disappears.
+    ret.parkingSensors.valid = self.parking_sensor_age < 100
+    ret.parkingSensors.frontLeft = int(pas["CF_Gway_PASDisplayFLH"])
+    ret.parkingSensors.frontCenter = int(pas["CF_Gway_PASDisplayFCTR"])
+    ret.parkingSensors.frontRight = int(pas["CF_Gway_PASDisplayFRH"])
+    ret.parkingSensors.rearLeft = int(pas["CF_Gway_PASDisplayRLH"])
+    ret.parkingSensors.rearCenter = int(pas["CF_Gway_PASDisplayRCTR"])
+    ret.parkingSensors.rearRight = int(pas["CF_Gway_PASDisplayRRH"])
 
     # Blind Spot Detection and Lane Change Assist signals
     if self.CP.enableBsm:
+      # LCA normal operating modes are OFF, passive and active.  Values from
+      # the fail state upward request the factory "check blind-spot system"
+      # warning instead of being mistaken for an ordinary mirror indication.
+      ret.blindSpotSystemFault = int(cp.vl["LCA11"]["CF_Lca_Stat"]) >= 3
       ret.leftBlindspot = cp.vl["LCA11"]["CF_Lca_IndLeft"] != 0
       ret.rightBlindspot = cp.vl["LCA11"]["CF_Lca_IndRight"] != 0
     else:
+      ret.blindSpotSystemFault = False
       ret.leftBlindspot = False
       ret.rightBlindspot = False
 
@@ -316,17 +409,36 @@ class CarState(CarStateBase):
       ("YAW_RATE", "ESP12"),
 
       ("CF_Gway_DrvSeatBeltInd", "CGW4"),
+      ("CF_Gway_AstSeatBeltInd", "CGW4"),
+      ("CF_Gway_RCSeatBeltInd", "CGW4"),
+      ("CF_Gway_RLSeatBeltInd", "CGW4"),
+      ("CF_Gway_RRSeatBeltInd", "CGW4"),
+      ("CF_Gway_DrvWdwStat", "CGW4"),
+      ("CF_Gway_AstWdwStat", "CGW4"),
+      ("CF_Gway_RLWdwState", "CGW4"),
+      ("CF_Gway_RRWdwState", "CGW4"),
 
       ("CF_Gway_DrvSeatBeltSw", "CGW1"),
       ("CF_Gway_DrvDrSw", "CGW1"),       # Driver Door
       ("CF_Gway_AstDrSw", "CGW1"),       # Passenger door
+      ("CF_Gway_TrunkTgSw", "CGW1"),     # Trunk / tailgate
+      ("CF_Gway_HoodSw", "CGW1"),        # Hood
       ("CF_Gway_RLDrSw", "CGW2"),        # Rear reft door
       ("CF_Gway_RRDrSw", "CGW2"),        # Rear right door
       ("CF_Gway_TurnSigLh", "CGW1"),
       ("CF_Gway_TurnSigRh", "CGW1"),
       ("CF_Gway_HeadLampLow", "CGW1"),
+      ("CF_Gway_AvTail", "CGW2"),
+      ("CF_Gway_ExtTailAct", "CGW2"),
+      ("CF_Gway_IntTailAct", "CGW2"),
+      ("C_TailLampActivity", "GW_IPM_PE_1"),
       ("CF_Gway_HeadLampHigh", "CGW1"),
       ("CF_Gway_Frt_Fog_Act", "CGW1"),
+      ("CF_Gway_WiperIntSw", "CGW1"),
+      ("CF_Gway_WiperLowSw", "CGW1"),
+      ("CF_Gway_WiperHighSw", "CGW1"),
+      ("CF_Gway_WiperAutoSw", "CGW1"),
+      ("CF_Gway_WiperMistSw", "CGW1"),
       ("CF_Gway_ParkBrakeSw", "CGW1"),   # Parking Brake
 
       ("CYL_PRES", "ESP12"),
@@ -345,6 +457,15 @@ class CarState(CarStateBase):
       ("CF_Clu_AliveCnt1", "CLU11"),
 
       ("CF_Clu_DTE", "CLU13"),
+      ("CF_Clu_LowfuelWarn", "CLU13"),
+
+      # DH exterior ambient temperature.  No frequency checks: model years
+      # use different climate/gateway frames and an absent variant must not
+      # invalidate the rest of carState.
+      ("CR_Fatc_OutTemp", "FATC11"),
+      ("CR_Fatc_OutTempSns", "FATC11"),
+      ("CR_Datc_OutTempC", "DATC11"),
+      ("C_MirOutTempSns", "CGW3"),
 
       ("ACCEnable", "TCS13"),
       ("BrakeLight", "TCS13"),
@@ -412,6 +533,16 @@ class CarState(CarStateBase):
       ("PRESSURE_FR", "TPMS11"),
       ("PRESSURE_RL", "TPMS11"),
       ("PRESSURE_RR", "TPMS11"),
+
+      # Factory-cluster parking sensor sectors.  This frame is optional and
+      # deliberately omitted from checks; vl_all is used to detect presence.
+      ("CF_Gway_PASDisplayFLH", "PAS11"),
+      ("CF_Gway_PASDisplayFCTR", "PAS11"),
+      ("CF_Gway_PASDisplayFRH", "PAS11"),
+      ("CF_Gway_PASDisplayRLH", "PAS11"),
+      ("CF_Gway_PASDisplayRCTR", "PAS11"),
+      ("CF_Gway_PASDisplayRRH", "PAS11"),
+      ("CF_Gway_PASSystemOn", "PAS11"),
     ]
 
     checks = [
@@ -512,6 +643,7 @@ class CarState(CarStateBase):
       signals += [
         ("FCA_CmdAct", "FCA11"),
         ("CF_VSM_Warn", "FCA11"),
+        ("FCA_Failinfo", "FCA11"),
       ]
 
       if not CP.openpilotLongitudinalControl:
@@ -522,6 +654,7 @@ class CarState(CarStateBase):
 
     if CP.enableBsm:
       signals += [
+        ("CF_Lca_Stat", "LCA11"),
         ("CF_Lca_IndLeft", "LCA11"),
         ("CF_Lca_IndRight", "LCA11"),
       ]

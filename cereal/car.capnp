@@ -219,6 +219,36 @@ struct CarState {
   # engine speed in rpm (EMS11 'N'), 0 = unavailable / EV
   engineRpm @54 :Float32;
 
+  # exterior ambient temperature in degrees Celsius (FATC11)
+  outsideTempC @55 :Float32;
+
+  # individual side-door states from CGW1/CGW2
+  frontLeftDoorOpen @56 :Bool;
+  frontRightDoorOpen @57 :Bool;
+  rearLeftDoorOpen @58 :Bool;
+  rearRightDoorOpen @59 :Bool;
+
+  # OEM driver-assistance warnings mirrored from the instrument cluster.
+  # parkingSensors.valid stays false when PAS11 is not present on the vehicle.
+  aebSystemFault @60 :Bool;
+  parkingSensors @61 :ParkingSensors;
+
+  # Front wiper stalk position from CGW1.
+  # 0 OFF, 1 AUTO, 2 INT, 3 LOW, 4 HIGH, 5 MIST.
+  wiperMode @62 :UInt8;
+
+  # Additional OEM cluster warnings mirrored by the remote HUD.
+  lowFuelWarning @63 :Bool;
+  blindSpotSystemFault @64 :Bool;
+
+  # Individual body-opening states shown by the factory cluster.
+  trunkOpen @65 :Bool;
+  hoodOpen @66 :Bool;
+  frontLeftWindowOpen @67 :Bool;
+  frontRightWindowOpen @68 :Bool;
+  rearLeftWindowOpen @69 :Bool;
+  rearRightWindowOpen @70 :Bool;
+
   # button presses
   buttonEvents @11 :List(ButtonEvent);
   leftBlinker @20 :Bool;
@@ -250,6 +280,16 @@ struct CarState {
     fr @1 :Float32;
     rl @2 :Float32;
     rr @3 :Float32;
+  }
+
+  struct ParkingSensors {
+    valid @0 :Bool;
+    frontLeft @1 :UInt8;
+    frontCenter @2 :UInt8;
+    frontRight @3 :UInt8;
+    rearLeft @4 :UInt8;
+    rearCenter @5 :UInt8;
+    rearRight @6 :UInt8;
   }
 
   struct WheelSpeeds {

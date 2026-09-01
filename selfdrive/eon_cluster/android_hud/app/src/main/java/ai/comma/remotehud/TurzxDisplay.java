@@ -78,6 +78,14 @@ public final class TurzxDisplay {
     private boolean sawInbound;
     private long lastInboundElapsed;
 
+    /**
+     * openDevice()/claimInterface() 는 예외를 던지지 않고 false 만 돌려주기
+     * 때문에, 그대로 두면 "여는 중" 으로만 보이고 어디서 막혔는지 알 수 없다.
+     * 마지막 실패 사유와 연속 실패 횟수를 남겨 상태줄과 복구 판단에 쓴다.
+     */
+    private String lastOpenFailure = "";
+    private int openFailureStreak;
+
     public TurzxDisplay(Context context) {
         this.context = context;
     }
@@ -95,7 +103,17 @@ public final class TurzxDisplay {
         if (!manager.hasPermission(target)) {
             return "연결됨 · USB 권한 승인 대기";
         }
-        return isOpen() ? "연결됨 · USB 권한 허용" : "연결됨 · 여는 중";
+        if (isOpen()) {
+            return "연결됨 · USB 권한 허용";
+        }
+        return lastOpenFailure.length() == 0
+                ? "연결됨 · 여는 중"
+                : "연결됨 · " + lastOpenFailure + " x" + openFailureStreak;
+    }
+
+    /** openDevice/claimInterface 가 조용히 실패한 연속 횟수. */
+    public synchronized int openFailureStreak() {
+        return openFailureStreak;
     }
 
     public synchronized String deviceNameOrNull() {
@@ -132,6 +150,8 @@ public final class TurzxDisplay {
         device = findTargetDevice();
         if (device == null) {
             permissionRequestedDeviceId = -1;
+            lastOpenFailure = "";
+            openFailureStreak = 0;
             return false;
         }
         if (!manager.hasPermission(device)) {
@@ -176,10 +196,22 @@ public final class TurzxDisplay {
         }
 
         connection = manager.openDevice(device);
-        if (connection == null || !connection.claimInterface(intf, true)) {
+        if (connection == null) {
+            // 권한은 있는데 커널이 핸들을 안 준 경우. 재열거 직후 권한이 옛
+            // 인스턴스에 묶여 있거나, 다른 프로세스가 물고 있을 때 나온다.
+            noteOpenFailure("장치 열기 실패");
             close();
             return false;
         }
+        if (!connection.claimInterface(intf, true)) {
+            // force=true 인데도 실패 = 같은 프로세스의 다른 커넥션이 인터페이스를
+            // 붙들고 있는 상태. 포트 재바인딩 말고는 풀 방법이 없다.
+            noteOpenFailure("인터페이스 점유 실패");
+            close();
+            return false;
+        }
+        lastOpenFailure = "";
+        openFailureStreak = 0;
 
         // 여는 시점에는 이전 세션의 halt 가 남아 있을 수 있으므로 여기서는 정리한다.
         clearHalt();
@@ -228,6 +260,18 @@ public final class TurzxDisplay {
         permissionRequestedDeviceId = -1;
         close();
         device = null;
+        lastOpenFailure = "";
+        openFailureStreak = 0;
+    }
+
+    private void noteOpenFailure(String reason) {
+        if (!reason.equals(lastOpenFailure)) {
+            openFailureStreak = 0;
+        }
+        lastOpenFailure = reason;
+        if (openFailureStreak < Integer.MAX_VALUE) {
+            openFailureStreak++;
+        }
     }
 
     /** 전송 실패 뒤에만 부른다. 정상 경로에서 부르면 data toggle 이 어긋난다. */

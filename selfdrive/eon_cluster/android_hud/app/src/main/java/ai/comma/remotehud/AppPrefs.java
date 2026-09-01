@@ -12,6 +12,8 @@ public final class AppPrefs {
     private static final String DISPLAY_PROFILE = "display_profile";
     private static final String FILE = "remote_hud_settings";
     private static final String GUIDE_SHOWN = "guide_shown_v37";
+    private static final String ORIENTATION = "hud_orientation";
+    private static final String MIRROR = "hud_mirror";
 
     private AppPrefs() {
     }
@@ -38,6 +40,22 @@ public final class AppPrefs {
             safeProfile = DISPLAY_PROFILE_AUTO;
         }
         prefs(context).edit().putInt(DISPLAY_PROFILE, safeProfile).apply();
+    }
+
+    public static int getOrientation(Context context) {
+        return prefs(context).getInt(ORIENTATION, 0) == 2 ? 2 : 0;
+    }
+
+    public static void setOrientation(Context context, int orientation) {
+        prefs(context).edit().putInt(ORIENTATION, orientation == 2 ? 2 : 0).apply();
+    }
+
+    public static boolean isMirror(Context context) {
+        return prefs(context).getBoolean(MIRROR, false);
+    }
+
+    public static void setMirror(Context context, boolean mirror) {
+        prefs(context).edit().putBoolean(MIRROR, mirror).apply();
     }
 
     public static boolean wasGuideShown(Context context) {

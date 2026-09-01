@@ -15,8 +15,6 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -41,7 +39,6 @@ public final class MainActivity extends Activity {
     private Switch autoSwitch;
     private TextView autoValue;
     private TextView eonValue;
-    private TextView displayProfileValue;
     private TextView fpsValue;
     private TextView jpegValue;
     private TextView mapValue;
@@ -74,7 +71,10 @@ public final class MainActivity extends Activity {
         // 조건을 모두 제거해 어떤 상태에서도 전면을 빼앗지 않도록 했다.
         if (fromUsbAttach) {
             AppPrefs.markGuideShown(this);
-            startHudService();
+            // 이미 서비스가 실행 중이어도 새로 열거된 UsbDevice 로 즉시 다시
+            // 잡도록 한다. "항상 열기"가 승인돼 있으면 화면을 띄우지 않고
+            // 곧바로 권한을 이어받아 전송을 시작한다.
+            startHudService(HudService.ACTION_RESCAN_USB);
             finish();
             return;
         }
@@ -104,8 +104,7 @@ public final class MainActivity extends Activity {
         rescanUsbButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startForegroundService(new Intent(MainActivity.this, HudService.class)
-                        .setAction(HudService.ACTION_RESCAN_USB));
+                startHudService(HudService.ACTION_RESCAN_USB);
             }
         });
 
@@ -122,6 +121,13 @@ public final class MainActivity extends Activity {
         super.onResume();
         if (AppPrefs.isAutoStart(this)) {
             startHudService();
+            HudService.StatusSnapshot snapshot = HudService.getStatusSnapshot();
+            // 부팅 초기에 보낸 시스템 USB 권한창이 표시되지 않았더라도 사용자가
+            // 상태 화면을 열면 "다시 검색" 버튼을 누를 필요 없이 한 번 재요청한다.
+            if (snapshot.running && !snapshot.usbConnected
+                    && snapshot.usbStatus.contains("USB 권한 승인 대기")) {
+                startHudService(HudService.ACTION_RESCAN_USB);
+            }
         }
         handler.post(refreshTask);
     }
@@ -152,7 +158,7 @@ public final class MainActivity extends Activity {
 
         root.addView(text("EON Remote HUD", 27.0f, Color.WHITE, Typeface.BOLD));
 
-        View subtitle = text("v0.68  ·  하단 고정 / 1CBE:0092",
+        View subtitle = text("v" + appVersionName() + "  ·  외부 HUD 전용 / 1CBE:0092",
                 14.0f, Color.rgb(145, 158, 171), Typeface.NORMAL);
         LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -207,62 +213,6 @@ public final class MainActivity extends Activity {
         autoCard.addView(autoRow);
         root.addView(autoCard, cardParams());
 
-        LinearLayout displayCard = card();
-        displayCard.addView(text("순정 내비 화면", 18.0f, Color.WHITE, Typeface.BOLD));
-        TextView displayGuide = text(
-                "8인치 또는 9.2인치를 선택하면 주행 화면 비율은 유지하고 우측 정보 패널을 실제 폭의 15%로 맞춥니다. 속도·RPM과 설정속도는 위로, 앞차·TPMS·교차로 카드는 아래로 맞추고 다음 안내는 위로 붙였습니다. 우측 S9 정보는 전체 높이에 균등 배치되며 nMirror 즐겨찾기 바로 옆부터 표시됩니다.",
-                14.0f, Color.rgb(190, 200, 210), Typeface.NORMAL);
-        displayGuide.setLineSpacing(0.0f, 1.18f);
-        LinearLayout.LayoutParams displayGuideParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        displayGuideParams.setMargins(0, dp(9), 0, dp(10));
-        displayCard.addView(displayGuide, displayGuideParams);
-
-        displayProfileValue = text("", 17.0f, GREEN, Typeface.BOLD);
-        LinearLayout.LayoutParams displayValueParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        displayValueParams.setMargins(0, dp(2), 0, dp(8));
-        displayCard.addView(displayProfileValue, displayValueParams);
-
-        String[] profiles = {
-                "자동 감지 (기존 원본 비율)",
-                "제네시스 순정 8인치  ·  800×480",
-                "제네시스 순정 9.2인치  ·  1280×720"
-        };
-        RadioGroup profileGroup = new RadioGroup(this);
-        profileGroup.setOrientation(RadioGroup.VERTICAL);
-        int selectedProfile = AppPrefs.getDisplayProfile(this);
-        for (int profile = 0; profile < profiles.length; profile++) {
-            RadioButton option = new RadioButton(this);
-            option.setId(View.generateViewId());
-            option.setTag(profile);
-            option.setText(profiles[profile]);
-            option.setTextColor(Color.WHITE);
-            option.setTextSize(16.0f);
-            option.setPadding(dp(4), dp(8), dp(4), dp(8));
-            profileGroup.addView(option, new RadioGroup.LayoutParams(
-                    RadioGroup.LayoutParams.MATCH_PARENT, dp(50)));
-            if (profile == selectedProfile) {
-                option.setChecked(true);
-            }
-        }
-        updateDisplayProfileValue(selectedProfile);
-        profileGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(RadioGroup group, int checkedId) {
-                View checked = group.findViewById(checkedId);
-                if (checked == null || !(checked.getTag() instanceof Integer)) {
-                    return;
-                }
-                int profile = (Integer) checked.getTag();
-                AppPrefs.setDisplayProfile(MainActivity.this, profile);
-                updateDisplayProfileValue(profile);
-            }
-        });
-        displayCard.addView(profileGroup, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        root.addView(displayCard, cardParams());
-
         LinearLayout permissionCard = card();
         permissionCard.addView(text("알림 권한", 18.0f, Color.WHITE, Typeface.BOLD));
         permissionValue = text(
@@ -287,7 +237,7 @@ public final class MainActivity extends Activity {
         root.addView(permissionCard, cardParams());
 
         TextView footer = text(
-                "화면 프로필은 S9/nMirror에만 적용됩니다. 외부 TURZX HUD는 원본 1920×462 UI를 유지합니다.",
+                "외부 TURZX HUD 전용입니다. 원본 1920×462 UI 를 그대로 패널로 보냅니다.",
                 13.0f, Color.rgb(120, 135, 149), Typeface.NORMAL);
         footer.setGravity(android.view.Gravity.CENTER);
         root.addView(footer);
@@ -295,28 +245,28 @@ public final class MainActivity extends Activity {
         return scroll;
     }
 
-    private void updateDisplayProfileValue(int profile) {
-        if (displayProfileValue == null) {
-            return;
-        }
-        String selected;
-        if (profile == AppPrefs.DISPLAY_PROFILE_GENESIS_8) {
-            selected = "제네시스 순정 8인치 · 800×480";
-        } else if (profile == AppPrefs.DISPLAY_PROFILE_GENESIS_9_2) {
-            selected = "제네시스 순정 9.2인치 · 1280×720";
-        } else {
-            selected = "자동 감지 · 기존 원본 비율";
-        }
-        displayProfileValue.setText("✓ 현재 적용: " + selected);
-    }
-
     private void refreshStatus() {
         HudService.StatusSnapshot s = HudService.getStatusSnapshot();
 
         setStatus(serviceValue, s.running ? "실행 중" : "중지됨", s.running ? GREEN : RED);
-        setStatus(eonValue,
-                s.eonConnected ? "연결됨 · " + s.eonAddress : "데이터 대기",
-                s.eonConnected ? GREEN : AMBER);
+        String eonStatus;
+        int eonColor;
+        if (s.eonConnected) {
+            eonStatus = "연결됨 · " + s.eonAddress + " · " + s.udpLastRawBytes + "B";
+            eonColor = GREEN;
+        } else if (s.udpRawPacketRecent) {
+            eonStatus = "원시 패킷 " + s.udpLastRawBytes + "B · "
+                    + (s.udpReceiverError.length() == 0 ? "JSON 처리 대기" : s.udpReceiverError);
+            eonColor = RED;
+        } else if (s.udpReceiverBound) {
+            eonStatus = "데이터 대기 · UDP 포트 정상";
+            eonColor = AMBER;
+        } else {
+            eonStatus = "UDP 포트 오류"
+                    + (s.udpReceiverError.length() == 0 ? "" : " · " + s.udpReceiverError);
+            eonColor = RED;
+        }
+        setStatus(eonValue, eonStatus, eonColor);
         setStatus(mapValue, s.mapConnected ? "연결됨" : "영상 대기", s.mapConnected ? GREEN : AMBER);
         setStatus(usbValue, s.usbStatus,
                 s.usbConnected ? GREEN : (s.usbError ? RED : AMBER));
@@ -343,7 +293,6 @@ public final class MainActivity extends Activity {
                 ? "알림 권한: 허용됨"
                 : "알림 권한: 미허용 (서비스는 동작하지만 알림이 보이지 않습니다)";
         permissionValue.setText(notificationStatus
-                + "\n화면 전환: nMirror 즐겨찾기의 ‘HUD 전환’ 아이콘"
                 + "\nUSB 권한: 외부 HUD 사용 시 ‘항상 허용’을 선택하세요.");
     }
 
@@ -356,10 +305,8 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("최초 실행 안내")
                 .setMessage("1. 알림 권한을 허용합니다.\n\n"
-                        + "2. nMirror는 기존처럼 TMAP을 자동 실행합니다.\n\n"
-                        + "3. nMirror 즐겨찾기에 ‘HUD 전환’을 추가합니다. 한 번 누르면 HUD, 다시 누르면 기존 TMAP으로 돌아갑니다.\n\n"
-                        + "4. 이 앱에서 순정 8인치 또는 9.2인치를 선택하면 즐겨찾기 영역을 제외한 네이티브 전체화면 UI가 적용됩니다.\n\n"
-                        + "5. 외부 HUD도 함께 쓰는 경우 USB 창에서 ‘항상 허용’을 선택합니다.\n\n"
+                        + "2. 외부 HUD 를 연결하고 USB 창에서 ‘항상 허용’을 선택합니다.\n\n"
+                        + "3. 티맵은 기존처럼 따로 실행하면 됩니다. 이 앱은 순정 화면에 아무것도 띄우지 않습니다.\n\n"
                         + "EON과 S9은 같은 네트워크에서 UDP 7210 / TCP 7211 통신이 가능해야 합니다.")
                 .setPositiveButton("권한 확인", new DialogInterface.OnClickListener() {
                     @Override
@@ -379,8 +326,16 @@ public final class MainActivity extends Activity {
     }
 
     private void startHudService() {
+        startHudService(null);
+    }
+
+    private void startHudService(String action) {
         try {
-            startForegroundService(new Intent(this, HudService.class));
+            Intent service = new Intent(this, HudService.class);
+            if (action != null) {
+                service.setAction(action);
+            }
+            startForegroundService(service);
         } catch (Exception ignored) {
         }
     }
@@ -406,6 +361,14 @@ public final class MainActivity extends Activity {
             startHudService();
         } else {
             startHudService();
+        }
+    }
+
+    private String appVersionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) {
+            return "?";
         }
     }
 

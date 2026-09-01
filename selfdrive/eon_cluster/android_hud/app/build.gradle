@@ -1,5 +1,9 @@
 plugins { id "com.android.application" }
 
+def remoteHudKeystorePath = System.getenv("REMOTE_HUD_KEYSTORE_PATH")
+def remoteHudVersionCode = (System.getenv("REMOTE_HUD_VERSION_CODE") ?: "125").toInteger()
+def remoteHudVersionName = System.getenv("REMOTE_HUD_VERSION_NAME") ?: "1.08-stable-signing"
+
 android {
   namespace "ai.comma.remotehud"
   compileSdk 35
@@ -7,8 +11,28 @@ android {
     applicationId "ai.comma.remotehud"
     minSdk 26
     targetSdk 35
-    versionCode 85
-    versionName "0.70-row-align"
+    versionCode remoteHudVersionCode
+    versionName remoteHudVersionName
+  }
+  signingConfigs {
+    remoteHudStable {
+      if (remoteHudKeystorePath) {
+        storeFile file(remoteHudKeystorePath)
+        storePassword System.getenv("REMOTE_HUD_KEYSTORE_PASSWORD")
+        keyAlias System.getenv("REMOTE_HUD_KEY_ALIAS")
+        keyPassword System.getenv("REMOTE_HUD_KEY_PASSWORD")
+        storeType "PKCS12"
+      }
+    }
+  }
+  buildTypes {
+    debug {
+      // Local builds may keep Android's normal debug key. CI always supplies
+      // the permanent Remote HUD key so every downloaded APK is updatable.
+      if (remoteHudKeystorePath) {
+        signingConfig signingConfigs.remoteHudStable
+      }
+    }
   }
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_11

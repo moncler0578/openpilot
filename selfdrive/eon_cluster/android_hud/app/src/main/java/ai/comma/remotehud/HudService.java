@@ -25,13 +25,12 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.hardware.usb.UsbDevice;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -52,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * v0.19 변경점
  *
- *  1. 주행씬을 World3D 의 실제 핀홀 원근투영으로 교체 (완전 3D).
+ *  1. 주행씬을 ModelWorldGL 의 실제 핀홀 원근투영으로 교체 (완전 3D).
  *  2. 프레임 버퍼 재사용 — v0.18 은 매 프레임 1920x462 비트맵을 만들고
  *     거기에 회전 복사본을 하나 더 만들었다(약 3.5MB/프레임, 8fps 면 28MB/s).
  *     이제 462x1920 세로 버퍼 하나만 잡아 두고 캔버스 행렬로 회전한다.
@@ -60,16 +59,18 @@ import java.util.concurrent.atomic.AtomicReference;
  *  4. EON UDP 가 끊기면 마지막 상태를 그대로 얼려 두지 않고 화면에 알린다.
  *     (v0.18 은 속도 0 인 채로 굳어 패널이 멈춘 것처럼 보였다)
  *  5. USB halt 처리 정리 + 패널 무응답 감시는 TurzxDisplay v0.19 참고.
+ *
  */
 public final class HudService extends Service {
 
     private static volatile HudService activeInstance;
 
+    private static final int UDP_PACKET_MAX_BYTES = 65507;
+
     static final String ACTION_RESCAN_USB = "ai.comma.remotehud.RESCAN_USB";
     static final String EXTRA_FROM_BOOT = "ai.comma.remotehud.FROM_BOOT";
 
     private static final String CHANNEL = "remote_hud";
-    private static final long BOOT_START_DELAY_MS = 30000L;
 
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 462;
@@ -82,32 +83,23 @@ public final class HudService extends Service {
     private static final int SYSTEM_LEFT = 1728;
     private static final int SYSTEM_RIGHT = 1920;
 
-    /** 순정 화면 전용 네이티브 캔버스. nMirror가 앱 바깥에서 즐겨찾기 폭을
-     *  이미 제외하므로 앱 내부에는 추가 여백을 두지 않는다. */
-    private static final int PHONE_8_WIDTH = 800;
-    private static final int PHONE_8_HEIGHT = 480;
-    private static final int PHONE_8_SIDEBAR = 0;
-    private static final int PHONE_9_WIDTH = 1280;
-    private static final int PHONE_9_HEIGHT = 720;
-    private static final int PHONE_9_SIDEBAR = 0;
-    /** 순정 내비에서 우측 정보 패널이 차지하는 실제 화면 폭 비율. */
-    private static final float NATIVE_SYSTEM_RATIO = 0.15f;
-    /** 순정 8/9.2인치에서 속도와 RPM 표시 전체를 함께 올리는 실제 픽셀값. */
-    private static final float NATIVE_GAUGE_RAISE_PX = 42f;
-    /** 순정 화면의 상·하단 카드 위치 보정값. */
-    private static final float NATIVE_CARD_SHIFT_PX = 18f;
     /**
-     * NOO 안내. 화살표는 깜박이고 아래 거리는 고정.
+     * NOO 안내. 화살표·거리·상태줄 모두 깜박이지 않고 고정이며, 상태줄은 안내가
+     * 없을 때도 항상 떠 있는다.
      * 과속카메라 아이콘(882, 171)·그 거리표시(y=231) 아래, TPMS 카드(위끝 376)
-     * 위의 빈 공간에 같은 세로줄로 세운다.
+     * 위의 빈 공간에 세운다. 가로 기준은 TPMS 카드 가운데(865).
      */
-    private static final float NOO_CX = 882f;
-    // 거리 글자 아래끝이 TPMS 카드(위끝 376) 바로 위에 오도록 잡고,
-    // 그 위에 약간의 간격을 두고 화살표를 세운다.
-    private static final float NOO_CY = 306f;
+    // 바로 아래 TPMS 카드(791~939) 의 가운데 865 에 맞춘다. 과속카메라 아이콘의
+    // 882 를 쓰면 안내가 없어 상태줄만 남았을 때 카드보다 오른쪽으로 치우쳐 보인다.
+    private static final float NOO_CX = 865f;
+    // 위에서부터 화살표(278) → 남은거리(340) → 차선변경 진단(372) 순으로 쌓고,
+    // 맨 아래 진단 글자가 TPMS 카드(위끝 376) 바로 위에 닿게 잡는다.
+    private static final float NOO_CY = 278f;
     private static final float NOO_ARROW_SCALE = 1.4f;
     private static final float NOO_TEXT_DY = 62f;
-    private static final long NOO_BLINK_MS = 500L;
+    /** 차선변경 진단 문자열. TPMS 카드 바로 위, 깜박이지 않고 계속 떠 있는다. */
+    private static final float NOO_LANE_DY = 94f;
+    private static final float NOO_LANE_SIZE = 17f;
     private static final float NOO_ICON_H = 62f;
     /** 적용속도 표시는 SET 원(반지름 36) 오른쪽으로 이만큼 띄운다. */
     private static final float APPLY_DX = 52f;
@@ -127,9 +119,21 @@ public final class HudService extends Service {
 
     private static final int USB_RESET_AFTER_ERRORS = 3;
     private static final int USB_SLOWDOWN_AFTER_ERRORS = 5;
+    /** openDevice/claimInterface 가 조용히 실패한 횟수가 이만큼 쌓이면 포트를 재바인딩한다. */
+    private static final int USB_OPEN_STALL_ATTEMPTS = 5;
+    /** 포트 재바인딩 재시도 간격. 너무 자주 하면 재열거만 반복된다. */
+    private static final long USB_OPEN_STALL_COOLDOWN_MS = 15000L;
+    /**
+     * 부팅 직후 Android USB 서비스가 완전히 준비되기 전에 권한 요청을 보내면
+     * 확인창이 뜨지 않은 채 "권한 승인 대기"로 남는 S9가 있다. 네트워크와
+     * 렌더러는 즉시 시작하되 USB 첫 검색만 잠깐 늦춘다.
+     */
+    private static final long BOOT_USB_SCAN_DELAY_MS = 5000L;
 
     /** EON 텔레메트리가 이보다 오래 끊기면 화면에 표시한다 */
     private static final long EON_STALE_MS = 3000L;
+    /** 와이퍼 조작 직후 상태표시 강조 시간. */
+    private static final long WIPER_MODE_HIGHLIGHT_MS = 2500L;
 
     private static volatile boolean serviceRunning;
     private static volatile boolean mapConnected;
@@ -141,15 +145,36 @@ public final class HudService extends Service {
     private static volatile long lastRenderElapsed;
     private static volatile long lastEonRxElapsed;
     private static volatile String lastEonAddress = "--";
+    private static volatile boolean udpReceiverBound;
+    private static volatile long udpRawPacketCount;
+    private static volatile int udpLastRawBytes;
+    private static volatile long udpLastRawRxElapsed;
+    private static volatile String udpReceiverError = "";
     private static volatile String usbStatus = "미연결 · 1CBE:0092";
 
     private TurzxDisplay display;
     private Bitmap egoCar;
+    private final float[] leadSpriteInfo = new float[3];
+    // 채도 0 + 밝기 0.82. 자차 그림을 앞차로 재사용할 때만 적용한다.
+    private static final ColorMatrixColorFilter leadTint = buildLeadTint();
+
+    private static ColorMatrixColorFilter buildLeadTint() {
+        ColorMatrix m = new ColorMatrix();
+        m.setSaturation(0f);
+        ColorMatrix dim = new ColorMatrix(new float[] {
+                0.82f, 0f, 0f, 0f, 0f,
+                0f, 0.82f, 0f, 0f, 0f,
+                0f, 0f, 0.82f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+        });
+        m.postConcat(dim);
+        return new ColorMatrixColorFilter(m);
+    }
     private Bitmap speedBumpImage;
     /** 회전종류(TURN_*) 별 실제 화살표 그림. 없는 칸은 벡터로 폴백한다. */
     private final Bitmap[] turnImages = new Bitmap[10];
-    private Bitmap otherCar;
     private Bitmap wheelImage;   // res/drawable-nodpi/hud_wheel.png (없으면 기존 벡터 핸들)
+    private Bitmap statusIcons;  // 순정 계기판 스타일: 미등/전조등/안전벨트/문 열림 PNG 스프라이트
     private Thread receiverThread;
     private Thread mapThread;
     private Thread renderThread;
@@ -157,7 +182,6 @@ public final class HudService extends Service {
     private boolean usbReceiverRegistered;
     private PowerManager.WakeLock wakeLock;
     private volatile boolean workersStarted;
-
     private long frameIntervalMs = 125L;
     private volatile long mapFrameIntervalMs = 200L;
     private long lastMapAcceptedElapsed = 0L;
@@ -169,14 +193,14 @@ public final class HudService extends Service {
     private int configuredRadarInfo = 4;
     private int configuredScreenMode = 1;
     /** 도로변 건물 표시 여부 (장식이므로 끌 수 있다) */
-    private boolean configuredBuildings = true;
     /** BSD 표시 방식 1: 막대만 / 2: 옅은 면 / 3: 진한 면 */
-    private int configuredBsdStyle = 2;
     /** 차량 표현 1: 사진 스프라이트 / 2: 3D 박스 */
-    private int configuredCarStyle = 1;
-    private int configuredRoadSigns = 3;   // 0:끔 1:제한속도 2:방지턱 3:둘다
     /** 이번 프레임의 테마 (매 프레임 render() 에서 갱신) */
     private boolean frameDark = false;
+    private WeatherService weather;
+    /** 상단 밴드에 하늘을 깐 동안만 true. 이때 글자색을 하늘 밝기에 맞춘다. */
+    private boolean skyBand = false;
+    private boolean skyLightInk = false;
     /** 1: 주행·지도·시스템 / 2: 실시간 디버그 / 3: S9 리모트 */
     private int configuredOutputMode = 1;
     /** 패킷 hudTmapIcon. 티맵 회전 아이콘을 쓸지(1) 앱 내장 화살표를 쓸지(0). */
@@ -186,7 +210,17 @@ public final class HudService extends Service {
     /** 화면 구성 1: 주행·티맵·시스템, 2: 주행·티맵만 */
     private int configuredLayoutMode = 1;
     /** 출력 대상 1: 외부 USB HUD, 2: S9 화면, 3: 동시 출력 */
-    private int configuredOutputTarget = 3;
+
+    // 회전 카운트다운 (carrot-wip leftSec 방식: 단조감소)
+    /** 직전 프레임 남은초. 거리 튐으로 카운트가 역행하지 않게 상한으로 쓴다. */
+    private int countdownLastSec = 100;
+    /** 0 초를 처음 만난 시각. 잠깐 보여준 뒤 닫는다. */
+    private long countdownZeroAtMs = 0L;
+
+    // 와이퍼 상태표시. MIST 는 짧은 펄스라 레버를 놓은 뒤에도 잠시 유지한다.
+    private int lastRawWiperMode = -1;
+    private int heldWiperMode = 0;
+    private long wiperModeChangedElapsed = 0L;
 
     // S9 자체 상태 (출력모드 3)
     private long lastReconnectElapsed = 0L;
@@ -203,7 +237,6 @@ public final class HudService extends Service {
     private long tripLastElapsed = 0L;
     private double tripDistanceKm = 0.0d;
     /** 건물이 뒤로 흘러가도록 하기 위한 누적 주행거리(m) */
-    private float worldOdoM = 0f;
 
     // 렌더 재사용 자원 (렌더 스레드 전용)
     private final Matrix wheelMatrix = new Matrix();
@@ -212,29 +245,30 @@ public final class HudService extends Service {
     private Canvas outCanvas;
     private Bitmap phoneFrame;
     private Canvas phoneCanvas;
-    private Bitmap phoneNativeFrame;
-    private Canvas phoneNativeCanvas;
-    private int phoneNativeProfile = AppPrefs.DISPLAY_PROFILE_AUTO;
-    private boolean nativeLayoutRendering = false;
-    private float nativeScaleX = 1f;
-    private float nativeScaleY = 1f;
-    private float nativeWidgetScale = 1f;
     private final Object phoneFrameLock = new Object();
     private final Paint phonePreviewPaint = new Paint(
             Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
-    private final RectF phoneDestination = new RectF();
     private final RectF phoneViewport = new RectF();
-    private long nextUsbAttemptElapsed;
+    /** 부팅 재연결 스레드에서도 갱신하므로 volatile 이어야 한다. */
+    private volatile long nextUsbAttemptElapsed;
+    private long nextOpenStallRecoverElapsed;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix outMatrix = new Matrix();
     private final RectF scratchRect = new RectF();
     private final Rect scratchIRect = new Rect();
     private final Path scratchPath = new Path();
-    private final World3D world = new World3D();
-    private OsmWorld osmWorld;
+    /** 문 열림 PNG: 흰 차체만 주간 배경용 진회색으로 바꾸고 빨간 문은 보존한다. */
+    private final ColorMatrixColorFilter dayDoorFilter = new ColorMatrixColorFilter(
+            new ColorMatrix(new float[] {
+                    1f, -0.398f, -0.398f, 0f, 0f,
+                    0f, 0.231f, 0f, 0f, 0f,
+                    0f, 0f, 0.259f, 0f, 0f,
+                    0f, 0f, 0f, 1f, 0f
+            }));
+    /** Lazy-created on the render thread. */
+    private ModelWorldGL modelWorldGl;
     private final ByteArrayOutputStream jpegOut = new ByteArrayOutputStream(180000);
 
-    private final Handler starter = new Handler(Looper.getMainLooper());
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicReference<JSONObject> state = new AtomicReference<>(new JSONObject());
     private final AtomicReference<Bitmap> mapFrame = new AtomicReference<>();
@@ -283,6 +317,11 @@ public final class HudService extends Service {
         final boolean running;
         final boolean eonConnected;
         final String eonAddress;
+        final boolean udpReceiverBound;
+        final boolean udpRawPacketRecent;
+        final long udpRawPacketCount;
+        final int udpLastRawBytes;
+        final String udpReceiverError;
         final boolean mapConnected;
         final String usbStatus;
         final boolean usbConnected;
@@ -291,11 +330,18 @@ public final class HudService extends Service {
         final int lastJpegBytes;
 
         StatusSnapshot(boolean running, boolean eonConnected, String eonAddress,
+                       boolean udpReceiverBound, boolean udpRawPacketRecent,
+                       long udpRawPacketCount, int udpLastRawBytes, String udpReceiverError,
                        boolean mapConnected, String usbStatus, boolean usbConnected,
                        boolean usbError, float fps, int lastJpegBytes) {
             this.running = running;
             this.eonConnected = eonConnected;
             this.eonAddress = eonAddress;
+            this.udpReceiverBound = udpReceiverBound;
+            this.udpRawPacketRecent = udpRawPacketRecent;
+            this.udpRawPacketCount = udpRawPacketCount;
+            this.udpLastRawBytes = udpLastRawBytes;
+            this.udpReceiverError = udpReceiverError;
             this.mapConnected = mapConnected;
             this.usbStatus = usbStatus;
             this.usbConnected = usbConnected;
@@ -308,9 +354,14 @@ public final class HudService extends Service {
     public static StatusSnapshot getStatusSnapshot() {
         long now = SystemClock.elapsedRealtime();
         boolean eonOk = serviceRunning && lastEonRxElapsed > 0 && now - lastEonRxElapsed < 2000;
+        boolean rawPacketRecent = serviceRunning && udpLastRawRxElapsed > 0
+                && now - udpLastRawRxElapsed < 2000;
         boolean fpsOk = serviceRunning && lastRenderElapsed > 0 && now - lastRenderElapsed < 2000;
         boolean jpegOk = serviceRunning && lastJpegSentElapsed > 0 && now - lastJpegSentElapsed < 2000;
-        return new StatusSnapshot(serviceRunning, eonOk, lastEonAddress, serviceRunning && mapConnected,
+        return new StatusSnapshot(serviceRunning, eonOk, lastEonAddress,
+                serviceRunning && udpReceiverBound, rawPacketRecent,
+                udpRawPacketCount, udpLastRawBytes, udpReceiverError,
+                serviceRunning && mapConnected,
                 usbStatus, serviceRunning && usbConnected, usbError,
                 fpsOk ? measuredFps : 0.0f, jpegOk ? lastJpegBytes : 0);
     }
@@ -321,13 +372,16 @@ public final class HudService extends Service {
     public void onCreate() {
         super.onCreate();
         activeInstance = this;
+        weather = new WeatherService(this);
+        // EON 이 붙기 전 첫 프레임부터 올바른 방향으로 그리기 위해 마지막 값을 복원한다.
+        configuredOrientation = AppPrefs.getOrientation(this);
+        configuredMirror = AppPrefs.isMirror(this);
         egoCar = BitmapFactory.decodeResource(getResources(), R.drawable.hud_ego_car);
-        otherCar = BitmapFactory.decodeResource(getResources(), R.drawable.hud_other_car);
         // 핸들 이미지는 선택 사항이라 R.drawable 을 직접 참조하지 않는다.
         // 파일이 없어도 빌드가 깨지지 않고, 있으면 자동으로 벡터 대신 쓰인다.
-        osmWorld = new OsmWorld(new java.io.File(getCacheDir(), "osm"));
         int wheelId = getResources().getIdentifier("hud_wheel", "drawable", getPackageName());
         wheelImage = wheelId == 0 ? null : BitmapFactory.decodeResource(getResources(), wheelId);
+        statusIcons = decodeUnscaled("hud_status_icons");
         // 과속방지턱 표지판은 EON assets/images/speed_bump.png 와 같은 그림을
         // drawable-nodpi 에 넣어 쓴다. 없으면 아래 벡터 폴백으로 그린다.
         int bumpId = getResources().getIdentifier("hud_speed_bump", "drawable", getPackageName());
@@ -376,6 +430,7 @@ public final class HudService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        boolean fromBoot = intent != null && intent.getBooleanExtra(EXTRA_FROM_BOOT, false);
         if (intent != null && ACTION_RESCAN_USB.equals(intent.getAction()) && running.get()) {
             requestUsbRescan();
             return START_STICKY;
@@ -391,20 +446,20 @@ public final class HudService extends Service {
         measuredFps = 0.0f;
         lastJpegBytes = 0;
         lastRenderElapsed = 0L;
+        udpReceiverBound = false;
+        udpRawPacketCount = 0L;
+        udpLastRawBytes = 0;
+        udpLastRawRxElapsed = 0L;
+        udpReceiverError = "";
         acquireWakeLock();
 
-        boolean fromBoot = intent != null && intent.getBooleanExtra(EXTRA_FROM_BOOT, false);
+        // 예전처럼 서비스 전체를 30초 기다리게 하지 않는다. EON/TMAP 수신과
+        // 화면 렌더는 바로 시작하고, 부팅 경로의 USB 권한 요청만 5초 늦춘다.
         if (fromBoot) {
-            usbStatus = "부팅 대기 30초";
-            starter.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    startWorkers();
-                }
-            }, BOOT_START_DELAY_MS);
-        } else {
-            startWorkers();
+            nextUsbAttemptElapsed = SystemClock.elapsedRealtime() + BOOT_USB_SCAN_DELAY_MS;
+            usbStatus = "부팅 완료 · 외부 HUD 자동 연결 대기";
         }
+        startWorkers();
         return START_STICKY;
     }
 
@@ -413,8 +468,11 @@ public final class HudService extends Service {
             return;
         }
         workersStarted = true;
-        usbStatus = "휴대폰 HUD 실행 · 외부 USB 검색 중";
+        if (nextUsbAttemptElapsed <= SystemClock.elapsedRealtime()) {
+            usbStatus = "휴대폰 HUD 실행 · 외부 USB 검색 중";
+        }
         display = new TurzxDisplay(this);
+
         receiverThread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -443,6 +501,7 @@ public final class HudService extends Service {
         mapThread.start();
         renderThread.start();
         statsThread.start();
+
     }
 
     private void acquireWakeLock() {
@@ -498,16 +557,31 @@ public final class HudService extends Service {
         while (running.get()) {
             DatagramSocket socket = null;
             try {
+                // Keep the direct bind path proven on the installed S9. Only the
+                // datagram buffer is enlarged for detailed modelV2 telemetry.
                 socket = new DatagramSocket(7210);
                 socket.setBroadcast(true);
                 socket.setSoTimeout(1000);
-                byte[] buffer = new byte[16384];
+                udpReceiverBound = true;
+                udpReceiverError = "";
+                byte[] buffer = new byte[UDP_PACKET_MAX_BYTES];
                 while (running.get()) {
                     try {
                         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                         socket.receive(packet);
-                        state.set(new JSONObject(new String(packet.getData(), packet.getOffset(),
-                                packet.getLength(), "UTF-8")));
+                        udpRawPacketCount++;
+                        udpLastRawBytes = packet.getLength();
+                        udpLastRawRxElapsed = SystemClock.elapsedRealtime();
+                        JSONObject decoded;
+                        try {
+                            decoded = new JSONObject(new String(packet.getData(), packet.getOffset(),
+                                    packet.getLength(), "UTF-8"));
+                        } catch (JSONException malformed) {
+                            udpReceiverError = "JSON 오류";
+                            continue;
+                        }
+                        state.set(decoded);
+                        udpReceiverError = "";
                         eonAddress.set(packet.getAddress());
                         lastEonRxElapsed = SystemClock.elapsedRealtime();
                         lastEonAddress = packet.getAddress().getHostAddress();
@@ -517,8 +591,12 @@ public final class HudService extends Service {
                     }
                 }
             } catch (Exception e) {
+                String message = e.getMessage();
+                udpReceiverError = e.getClass().getSimpleName()
+                        + (message == null || message.length() == 0 ? "" : ": " + message);
                 SystemClock.sleep(1000L);
             } finally {
+                udpReceiverBound = false;
                 if (socket != null) {
                     try {
                         socket.close();
@@ -656,7 +734,7 @@ public final class HudService extends Service {
 
             updateTrip(currentState, now);
 
-            boolean usbReady = usbOutputEnabled() && ensureUsbReady(now);
+            boolean usbReady = ensureUsbReady(now);
             Bitmap usbFrame = null;
             synchronized (assetLock) {
                 Bitmap map = mapFrame.get();
@@ -664,11 +742,9 @@ public final class HudService extends Service {
                 Bitmap tbtNext = tbtNextFrame.get();
                 Bitmap lane = laneFrame.get();
                 synchronized (phoneFrameLock) {
+                    // phoneFrame 은 화면 출력용이 아니라 USB 회전 전의 논리
+                    // 프레임이다. 외부 HUD 전용이 된 뒤에도 이 단계는 남는다.
                     renderPhone(currentState, map, tbtCurrent, tbtNext, lane);
-                    if (phoneOutputEnabled()) {
-                        renderNativePhone(currentState, AppPrefs.getDisplayProfile(this),
-                                map, tbtCurrent, tbtNext, lane);
-                    }
                     if (usbReady) {
                         usbFrame = renderUsbFromPhone();
                     }
@@ -688,6 +764,12 @@ public final class HudService extends Service {
             }
             nextFrame = due;
         }
+        // The EGL context was created and used on this render thread, so it
+        // must also be released here when the service loop stops.
+        if (modelWorldGl != null) {
+            modelWorldGl.release();
+            modelWorldGl = null;
+        }
     }
 
     private void applyFrameConfiguration(JSONObject currentState) {
@@ -698,52 +780,20 @@ public final class HudService extends Service {
         configuredLanguage = Math.max(0, Math.min(1, currentState.optInt("hudLanguage", 0)));
         configuredRadarInfo = Math.max(0, Math.min(4, currentState.optInt("hudRadarInfo", 4)));
         configuredScreenMode = Math.max(1, Math.min(3, currentState.optInt("hudScreenMode", 1)));
-        configuredOrientation = currentState.optInt("hudOrientation", 0) == 2 ? 2 : 0;
-        configuredMirror = currentState.optInt("hudMirror", 0) != 0;
-        configuredBuildings = currentState.optInt("hudBuildings", 1) != 0;
-        configuredBsdStyle = Math.max(1, Math.min(3, currentState.optInt("hudBsdStyle", 2)));
-        configuredCarStyle = currentState.optInt("hudCarStyle", 1) == 2 ? 2 : 1;
-        configuredRoadSigns = Math.max(0, Math.min(3, currentState.optInt("hudRoadSigns", 3)));
+        int requestedOrientation = currentState.optInt("hudOrientation", configuredOrientation) == 2 ? 2 : 0;
+        boolean requestedMirror = currentState.optInt("hudMirror", configuredMirror ? 1 : 0) != 0;
+        if (requestedOrientation != configuredOrientation) {
+            configuredOrientation = requestedOrientation;
+            AppPrefs.setOrientation(this, requestedOrientation);
+        }
+        if (requestedMirror != configuredMirror) {
+            configuredMirror = requestedMirror;
+            AppPrefs.setMirror(this, requestedMirror);
+        }
         configuredOutputMode = Math.max(1, Math.min(3, currentState.optInt("hudOutputMode", 1)));
         tmapIconEnabled = currentState.optInt("hudTmapIcon", 0) != 0;
         junctionMode = Math.max(0, Math.min(2, currentState.optInt("hudJunction", 2)));
         configuredLayoutMode = Math.max(1, Math.min(2, currentState.optInt("hudLayoutMode", 1)));
-        int requestedOutputTarget = Math.max(1, Math.min(3,
-                currentState.optInt("hudOutputTarget", 3)));
-        if (requestedOutputTarget != configuredOutputTarget) {
-            configuredOutputTarget = requestedOutputTarget;
-            applyOutputTarget();
-        }
-    }
-
-    private boolean usbOutputEnabled() {
-        return configuredOutputTarget == 1 || configuredOutputTarget == 3;
-    }
-
-    private boolean phoneOutputEnabled() {
-        return configuredOutputTarget == 2 || configuredOutputTarget == 3;
-    }
-
-    /** 출력 대상 변경을 즉시 반영하고, 꺼지는 쪽에는 마지막 영상이 남지 않게 한다. */
-    private void applyOutputTarget() {
-        if (!usbOutputEnabled() && display != null) {
-            if (display.isOpen()) {
-                try {
-                    sendBlankFrame();
-                    display.setBrightness(1);
-                } catch (Exception ignored) {
-                }
-            }
-            display.close();
-            appliedBrightness = -1;
-            usbConnected = false;
-            usbError = false;
-            usbStatus = "외부 HUD 출력 꺼짐 · S9 화면 출력";
-        } else if (usbOutputEnabled()) {
-            nextUsbAttemptElapsed = 0L;
-            usbStatus = phoneOutputEnabled()
-                    ? "동시 출력 · 외부 USB 검색 중" : "외부 HUD 출력 · USB 검색 중";
-        }
     }
 
     private boolean ensureUsbReady(long now) {
@@ -759,6 +809,7 @@ public final class HudService extends Service {
                 usbStatus = "휴대폰 HUD 실행 · " + display.describeStatus();
                 usbConnected = false;
                 usbError = false;
+                recoverStalledOpen(now);
                 return false;
             }
             lastReconnectElapsed = SystemClock.elapsedRealtime();
@@ -771,6 +822,64 @@ public final class HudService extends Service {
             handleUsbError(e);
             return false;
         }
+    }
+
+    /**
+     * openDevice/claimInterface 실패는 예외가 아니라 false 로 돌아오므로
+     * handleUsbError() 를 타지 않는다. 그래서 clearHalt·포트 재바인딩 같은
+     * 복구가 하나도 돌지 않은 채 1초마다 같은 실패만 반복하게 된다.
+     * 여기서 그 구멍을 메운다. usbErrorStreak 는 건드리지 않으므로 프레임이
+     * 250ms 로 떨어지는 부작용은 생기지 않는다.
+     */
+    private void recoverStalledOpen(long now) {
+        if (display.openFailureStreak() < USB_OPEN_STALL_ATTEMPTS) {
+            return;
+        }
+        if (now < nextOpenStallRecoverElapsed) {
+            return;
+        }
+        nextOpenStallRecoverElapsed = now + USB_OPEN_STALL_COOLDOWN_MS;
+        usbStatus = "휴대폰 HUD 실행 · USB 포트 재바인딩 시도";
+        boolean reset = UsbPortReset.resetPort(display.deviceNameOrNull());
+        display.reset();
+        nextUsbAttemptElapsed = now + (reset ? 2500L : 1500L);
+    }
+
+    /**
+     * 앞차를 자차와 같은 그림으로 그린다. info = {중심 x, 접지 y, 폭}.
+     * 원근 축소는 GL 이 계산한 폭을 그대로 쓰고, 높이는 그림 비율로 맞춘다.
+     */
+    private void drawLeadSprite(Canvas c, Paint p, float[] info,
+                                float alpha, boolean braking) {
+        float width = info[2];
+        if (width < 6f || egoCar == null || egoCar.isRecycled()) {
+            return;
+        }
+        float height = egoCar.getHeight() * width / egoCar.getWidth();
+        float left = info[0] - width * 0.5f;
+        float bottom = info[1];
+        scratchRect.set(left, bottom - height, left + width, bottom);
+        p.setShader(null);
+        // 앞차는 자차와 같은 그림을 쓰므로 채도를 빼고 살짝 어둡게 해서 구분한다.
+        p.setColorFilter(leadTint);
+        p.setFilterBitmap(true);
+        p.setAlpha(Math.max(0, Math.min(255, Math.round(alpha * 255f))));
+        c.drawBitmap(egoCar, null, scratchRect, p);
+        p.setColorFilter(null);
+        if (braking) {
+            // 제동 중이면 뒷면 좌우에 붉은 표시. 그림 자체에는 등이 없다.
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.rgb(255, 55, 62));
+            p.setAlpha(Math.max(0, Math.min(255, Math.round(alpha * 245f))));
+            float lampW = width * 0.20f;
+            float lampH = Math.max(1.5f, height * 0.16f);
+            float lampY = bottom - height * 0.34f;
+            c.drawRect(left + width * 0.10f, lampY,
+                    left + width * 0.10f + lampW, lampY + lampH, p);
+            c.drawRect(left + width * 0.90f - lampW, lampY,
+                    left + width * 0.90f, lampY + lampH, p);
+        }
+        p.setAlpha(255);
     }
 
     private void sendUsbFrame(Bitmap frame, JSONObject currentState) {
@@ -852,7 +961,7 @@ public final class HudService extends Service {
         return outCanvas;
     }
 
-    /** Phone/nMirror uses the logical landscape frame without TURZX rotation. */
+    /** USB 회전 전의 논리 가로 프레임. 화면 출력용이 아니다. */
     private Canvas beginPhoneFrame() {
         if (phoneFrame == null || phoneFrame.isRecycled()) {
             phoneFrame = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.RGB_565);
@@ -866,71 +975,30 @@ public final class HudService extends Service {
         synchronized (phoneFrameLock) {
             Canvas c = beginPhoneFrame();
             c.drawColor(Color.BLACK);
-            if (phoneNativeCanvas != null) {
-                phoneNativeCanvas.drawColor(Color.BLACK);
-            }
         }
     }
 
-    /**
-     * 자동 모드는 1920x462 원본을 비율 유지로 표시한다. 8/9.2인치 수동 모드는
-     * 각각의 네이티브 전체화면 프레임을 사용한다. 네이티브 프레임의 왼쪽 안전
-     * 영역은 nMirror 즐겨찾기 바가 덮고, 나머지 영역은 주행·지도·상태 UI가 채운다.
-     */
+    /** c2_lastSupper 의 S9 전체화면 Activity 에 최신 g_hud 프레임을 전달한다. */
     static boolean drawFullscreenFrame(Canvas canvas, int width, int height) {
         HudService service = activeInstance;
-        if (service == null || !service.phoneOutputEnabled() || width <= 0 || height <= 0) {
+        if (service == null || width <= 0 || height <= 0) {
             return false;
         }
         synchronized (service.phoneFrameLock) {
-            int profile = AppPrefs.getDisplayProfile(service);
             Bitmap frame = service.phoneFrame;
-            if (profile != AppPrefs.DISPLAY_PROFILE_AUTO
-                    && profile == service.phoneNativeProfile
-                    && service.phoneNativeFrame != null
-                    && !service.phoneNativeFrame.isRecycled()) {
-                frame = service.phoneNativeFrame;
-            }
             if (frame == null || frame.isRecycled()) {
                 return false;
             }
             canvas.drawColor(Color.BLACK);
-            service.resolvePhoneViewport(width, height, profile, service.phoneViewport);
-            float scale = Math.min(service.phoneViewport.width() / frame.getWidth(),
-                    service.phoneViewport.height() / frame.getHeight());
-            int drawWidth = Math.max(1, Math.round(frame.getWidth() * scale));
-            int drawHeight = Math.max(1, Math.round(frame.getHeight() * scale));
-            int left = Math.round(service.phoneViewport.left
-                    + (service.phoneViewport.width() - drawWidth) * 0.5f);
-            int top = Math.round(service.phoneViewport.top
-                    + (service.phoneViewport.height() - drawHeight) * 0.5f);
-            service.phoneDestination.set(left, top, left + drawWidth, top + drawHeight);
-            canvas.drawBitmap(frame, null, service.phoneDestination,
-                    service.phonePreviewPaint);
+            float scale = Math.min((float) width / frame.getWidth(),
+                    (float) height / frame.getHeight());
+            float drawWidth = frame.getWidth() * scale;
+            float drawHeight = frame.getHeight() * scale;
+            float left = (width - drawWidth) * 0.5f;
+            float top = (height - drawHeight) * 0.5f;
+            service.phoneViewport.set(left, top, left + drawWidth, top + drawHeight);
+            canvas.drawBitmap(frame, null, service.phoneViewport, service.phonePreviewPaint);
             return true;
-        }
-    }
-
-    private void resolvePhoneViewport(int width, int height, int profile, RectF out) {
-        float targetAspect;
-        if (profile == AppPrefs.DISPLAY_PROFILE_GENESIS_8) {
-            targetAspect = PHONE_8_WIDTH / (float) PHONE_8_HEIGHT;
-        } else if (profile == AppPrefs.DISPLAY_PROFILE_GENESIS_9_2) {
-            targetAspect = PHONE_9_WIDTH / (float) PHONE_9_HEIGHT;
-        } else {
-            out.set(0f, 0f, width, height);
-            return;
-        }
-
-        float actualAspect = width / (float) height;
-        if (actualAspect > targetAspect) {
-            int viewportWidth = Math.max(1, Math.round(height * targetAspect));
-            int left = (width - viewportWidth) / 2;
-            out.set(left, 0f, left + viewportWidth, height);
-        } else {
-            int viewportHeight = Math.max(1, Math.round(width / targetAspect));
-            int top = (height - viewportHeight) / 2;
-            out.set(0f, top, width, top + viewportHeight);
         }
     }
 
@@ -956,57 +1024,6 @@ public final class HudService extends Service {
         drawFrame(c, s, map, tbtCurrent, tbtNext, lane);
     }
 
-    private Canvas beginNativePhoneFrame(int profile) {
-        int width = profile == AppPrefs.DISPLAY_PROFILE_GENESIS_8
-                ? PHONE_8_WIDTH : PHONE_9_WIDTH;
-        int height = profile == AppPrefs.DISPLAY_PROFILE_GENESIS_8
-                ? PHONE_8_HEIGHT : PHONE_9_HEIGHT;
-        if (phoneNativeFrame == null || phoneNativeFrame.isRecycled()
-                || phoneNativeFrame.getWidth() != width || phoneNativeFrame.getHeight() != height) {
-            if (phoneNativeFrame != null && !phoneNativeFrame.isRecycled()) {
-                phoneNativeFrame.recycle();
-            }
-            phoneNativeFrame = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
-            phoneNativeCanvas = new Canvas(phoneNativeFrame);
-        }
-        phoneNativeCanvas.setMatrix(null);
-        phoneNativeProfile = profile;
-        return phoneNativeCanvas;
-    }
-
-    /**
-     * 원본 3열 좌표는 유지하되 한 장의 비트맵을 늘리지 않고 다시 그린다.
-     * 배경 패널만 화면 전체를 채우고, 글자/계기/차량/지도는 별도 보정 행렬로
-     * 종횡비를 유지한다. nMirror 즐겨찾기 폭은 앱 외부에서 이미 제외된다.
-     */
-    private void renderNativePhone(JSONObject s, int profile, Bitmap map,
-                                   Bitmap tbtCurrent, Bitmap tbtNext, Bitmap lane) {
-        if (profile == AppPrefs.DISPLAY_PROFILE_AUTO || phoneFrame == null || phoneFrame.isRecycled()) {
-            phoneNativeProfile = AppPrefs.DISPLAY_PROFILE_AUTO;
-            return;
-        }
-
-        Canvas c = beginNativePhoneFrame(profile);
-        int width = phoneNativeFrame.getWidth();
-        int height = phoneNativeFrame.getHeight();
-        c.drawColor(Color.rgb(5, 8, 12));
-        nativeScaleX = width / (float) WIDTH;
-        nativeScaleY = height / (float) HEIGHT;
-        nativeWidgetScale = profile == AppPrefs.DISPLAY_PROFILE_GENESIS_8 ? 0.64f : 0.96f;
-        nativeLayoutRendering = true;
-        int save = c.save();
-        try {
-            c.scale(nativeScaleX, nativeScaleY);
-            drawFrame(c, s, map, tbtCurrent, tbtNext, lane);
-        } finally {
-            c.restoreToCount(save);
-            nativeLayoutRendering = false;
-            nativeScaleX = 1f;
-            nativeScaleY = 1f;
-            nativeWidgetScale = 1f;
-        }
-    }
-
     private void drawFrame(Canvas c, JSONObject s, Bitmap map, Bitmap tbtCurrent,
                            Bitmap tbtNext, Bitmap lane) {
         Paint p = paint;
@@ -1017,7 +1034,7 @@ public final class HudService extends Service {
 
         drawDriving(c, p, s);
 
-        if (configuredLayoutMode == 1 && !nativeLayoutRendering) {
+        if (configuredLayoutMode == 1) {
             JSONObject l = layout(s);
             int save = beginElement(c, l, "system", 1824f, 231f);
             if (configuredOutputMode == 3) {
@@ -1037,10 +1054,10 @@ public final class HudService extends Service {
         } else {
             drawMap(c, p, s, map, tbtCurrent, tbtNext, lane);
         }
-        if (configuredLayoutMode == 1 && nativeLayoutRendering) {
-            drawNativeSystemPanel(c, p, s);
-        }
         applyThemeOverlay(c, p);
+        // 순정 계기판 경고는 우측 TMAP 위에 독립된 흰색 팝업으로 표시한다.
+        // 야간 지도 마스크 뒤에 그려 항상 선명한 흰색을 유지한다.
+        drawOemWarningPopup(c, p, s);
     }
 
     private boolean eonStale() {
@@ -1055,74 +1072,91 @@ public final class HudService extends Service {
 
         p.setShader(null);
         p.setStyle(Paint.Style.FILL);
-        int driveBg = lc(l, "driveBg", frameDark ? Color.rgb(15, 19, 25) : Color.rgb(239, 241, 242));
+        int driveBg = lc(l, "driveBg", frameDark ? Color.rgb(22, 28, 36) : Color.rgb(226, 229, 231));
         p.setColor(driveBg);
         c.drawRect(0f, 0f, DRIVE_RIGHT, 462f, p);
 
-        JSONObject naviForWorld = stale ? null : s.optJSONObject("navi");
-        JSONObject worldScene = naviForWorld == null ? null : naviForWorld.optJSONObject("scene");
-        world.setNavi(worldScene);
-        OsmWorld.Snapshot osmSnap = null;
-        JSONArray scenePos = worldScene == null ? null : worldScene.optJSONArray("pos");
-        if (scenePos != null && scenePos.length() >= 3 && osmWorld != null) {
-            double posLat = scenePos.optDouble(0, Double.NaN);
-            double posLon = scenePos.optDouble(1, Double.NaN);
-            double posHead = scenePos.optDouble(2, Double.NaN);
-            if (!Double.isNaN(posLat) && !Double.isNaN(posLon) && !Double.isNaN(posHead)) {
-                osmWorld.ensure(posLat, posLon);
-                osmSnap = osmWorld.snapshot(posLat, posLon, posHead);
+        int roadTop = lc(l, "roadTop",
+                frameDark ? Color.rgb(50, 58, 68) : Color.rgb(210, 215, 219));
+        int roadBottom = lc(l, "roadBottom",
+                frameDark ? Color.rgb(62, 72, 84) : Color.rgb(198, 204, 209));
+        int pathColor = lc(l, "pathColor",
+                frameDark ? Color.rgb(40, 150, 255) : Color.rgb(24, 126, 224));
+
+        int worldSave = c.save();
+        // Canvas 렌더러가 없어졌으므로 GL 을 끄는 스위치도 없앴다. 끌 수 있게
+        // 두면 주행 패널이 배경색만 남는다.
+        boolean glDrawn = false;
+        if (!stale) {
+            if (modelWorldGl == null) {
+                modelWorldGl = new ModelWorldGL(this);
+            }
+            glDrawn = modelWorldGl.draw(c, p, s, enabled, driveBg, roadTop,
+                    roadBottom, pathColor, frameDark,
+                    (float) s.optDouble("hudRoadZ", 100d),
+                    (float) s.optDouble("pitch", 0d),
+                    (float) s.optDouble("hudPitchDyn", 60d),
+                    (float) s.optDouble("calibPitch", 0d),
+                    egoCar != null && !egoCar.isRecycled(),
+                    s.optInt("hudGuardrail", 1) != 0,
+                    Math.max(0, Math.min(100, s.optInt("hudHaze", 55))));
+            if (glDrawn && egoCar != null && !egoCar.isRecycled()) {
+                // 앞차도 자차와 같은 그림으로. 먼 차부터 그려 근경이 덮게 한다.
+                for (int leadIndex = 1; leadIndex >= 0; leadIndex--) {
+                    if (!modelWorldGl.leadSprite(leadIndex, leadSpriteInfo)) {
+                        continue;
+                    }
+                    drawLeadSprite(c, p, leadSpriteInfo,
+                            modelWorldGl.leadSpriteAlpha(leadIndex),
+                            modelWorldGl.leadSpriteBraking(leadIndex));
+                }
+            }
+            if (glDrawn && egoCar != null && !egoCar.isRecycled()) {
+                // Preserve the approved ego-car artwork in the GL preview.
+                float carWidth = 78f;
+                float carHeight = egoCar.getHeight() * carWidth / egoCar.getWidth();
+                scratchRect.set(DRIVE_CX - carWidth * 0.5f, 433f - carHeight,
+                        DRIVE_CX + carWidth * 0.5f, 433f);
+                p.setAlpha(255);
+                p.setFilterBitmap(true);
+                c.drawBitmap(egoCar, null, scratchRect, p);
             }
         }
-        world.setOsm(osmSnap);
-        int worldSave = c.save();
-        if (nativeLayoutRendering) {
-            // 주행 장면은 세로 확대율을 X에도 적용하고 좌우만 중앙 크롭한다.
-            // 도로·차량·건물의 원형/차체 비율이 화면 압축으로 찌그러지지 않는다.
-            c.clipRect(0f, 0f, DRIVE_RIGHT, HEIGHT);
-            c.scale(nativeScaleY / nativeScaleX, 1f, DRIVE_CX, HEIGHT * 0.5f);
+
+        if (!glDrawn) {
+            // Canvas 폴백 렌더러는 제거됐다. GL 이 못 그린 프레임(EON 정지, EGL 실패,
+            // 경로 점 부족)에서는 주행 패널을 배경색으로 지운다. 지우지 않으면
+            // 재사용 비트맵에 직전 장면이 남아 화면이 굳은 것처럼 보인다.
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setAlpha(255);
+            p.setColor(ModelWorldGL.blend(driveBg, Color.BLACK,
+                    frameDark ? 0.15f : 0.10f));
+            c.drawRect(0f, ModelWorldGL.TOP, DRIVE_RIGHT, ModelWorldGL.BOTTOM, p);
         }
-        world.draw(c, p, stale ? null : s, enabled, egoCar, otherCar, worldOdoM,
-                driveBg,
-                lc(l, "roadTop", frameDark ? Color.rgb(42, 49, 58) : Color.rgb(226, 229, 231)),
-                lc(l, "roadBottom", frameDark ? Color.rgb(53, 61, 71) : Color.rgb(216, 220, 223)),
-                lc(l, "pathColor", frameDark ? Color.rgb(40, 150, 255) : Color.rgb(24, 126, 224)),
-                configuredRadarInfo, configuredBuildings, frameDark, configuredBsdStyle,
-                configuredCarStyle,
-                (float) s.optDouble("pathOffset", 0d),
-                (float) s.optDouble("calibPitch", 0d),
-                (configuredRoadSigns & 1) != 0,
-                (configuredRoadSigns & 2) != 0,
-                (float) s.optDouble("hudRoadZ", 100d),
-                (float) s.optDouble("pitch", 0d),
-                (float) s.optDouble("hudPitchDyn", 60d),
-                (float) s.optDouble("laneWidth", 0d),
-                s.isNull("stopDist") ? -1f : (float) s.optDouble("stopDist", -1d));
         c.restoreToCount(worldSave);
 
         int blinkerSave = beginElement(c, l, "blinkers", DRIVE_CX, 386f);
         drawBlinkers(c, p, s, stale);
         c.restoreToCount(blinkerSave);
 
-        int save = beginElement(c, l, "lights", 70f, 28f);
+        drawSkyBand(c, p);
+
+        // Existing lamp art stays unchanged; move the complete row inside
+        // the panel, centred on the outside-temperature/range row.
+        int save = beginElement(c, l, "lights", 70f, 36f);
         drawLights(c, p, s);
         c.restoreToCount(save);
 
         int save2 = beginElement(c, l, "prnd", 90f, 116f);
-        drawPrnd(c, p, s.optString("gear", "--"));
+        drawGearAndCoolant(c, p, s);
         c.restoreToCount(save2);
 
         int save3 = beginElement(c, l, "speed", DRIVE_CX, SPEED_BASELINE);
-        if (nativeLayoutRendering) {
-            c.translate(0f, -NATIVE_GAUGE_RAISE_PX / nativeWidgetScale);
-        }
         drawSpeed(c, p, stale ? -1 : s.optInt("speed", 0));
         c.restoreToCount(save3);
 
         int saveRpm = beginElement(c, l, "rpm", DRIVE_CX, 118f);
-        if (nativeLayoutRendering) {
-            // RPM 아크, RPM 라벨, 회전수 숫자를 속도 숫자와 같은 실제 높이만큼 이동한다.
-            c.translate(0f, -NATIVE_GAUGE_RAISE_PX / nativeWidgetScale);
-        }
         drawRpm(c, p, stale ? -1 : s.optInt("rpm", -1), lv(l, "rpmRedline", 6500f));
         c.restoreToCount(saveRpm);
 
@@ -1131,6 +1165,7 @@ public final class HudService extends Service {
         c.restoreToCount(modeSave);
         int rangeSave = beginElement(c, l, "range", 932f, 44f);
         drawRange(c, p, s);
+        drawOutsideTemp(c, p, s);
         c.restoreToCount(rangeSave);
 
         p.setStyle(Paint.Style.STROKE);
@@ -1139,33 +1174,24 @@ public final class HudService extends Service {
         c.drawLine(18f, 129f, 934f, 129f, p);
 
         int save4 = beginElement(c, l, "wheel", 70f, 171f);
-        if (nativeLayoutRendering) {
-            // SET 원과 같은 가로줄에 오도록 같은 보정을 준다.
-            c.translate(0f, -NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
-        }
-        drawSteeringWheel(c, p, 70f, 171f, (float) s.optDouble("steer", 0d), enabled);
+        int steerWarning = s.optBoolean("steerFaultPermanent", false) ? 2
+                : (s.optBoolean("steerFaultTemporary", false) ? 1 : 0);
+        drawSteeringWheel(c, p, 70f, 171f, (float) s.optDouble("steer", 0d),
+                enabled, steerWarning);
         c.restoreToCount(save4);
 
         int save5 = beginElement(c, l, "set", DRIVE_CX, 171f);
-        if (nativeLayoutRendering) {
-            c.translate(0f, -NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
-        }
-        drawSetSpeed(c, p, DRIVE_CX, 171f, s.optInt("set", 0), enabled);
+        drawSetSpeed(c, p, DRIVE_CX, 171f, s.optInt("set", 0), enabled, s);
         drawApplySpeed(c, p, s);
         c.restoreToCount(save5);
 
         int save6 = beginElement(c, l, "camera", 882f, 171f);
-        if (nativeLayoutRendering) {
-            // 핸들·SET 과 같은 가로줄 유지.
-            c.translate(0f, -NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
-        }
         int bumpDist = stale ? 0 : (int) Math.round(s.optDouble("bumpDist", 0d));
         if (bumpDist > 0) {
             // EON onroad.cc drawSpeedLimit 과 같은 규칙: 방지턱이 있으면
             // 과속카메라 대신 이 자리를 쓴다.
             drawBumpIcon(c, p, 882f, 171f, bumpDist);
         } else if (!stale) {
-            // 2026-08-19: 과속카메라 / 구간단속 표시 복구.
             // packet 의 camera(=camLimitSpeed 또는 sectionLimitSpeed) 는
             // remote_hud._packet 에서 이미 EON drawSpeedLimit 과 같은 우선순위로
             // 골라 보낸다. 도로 제한속도(limit) 는 여기에 그리지 않는다.
@@ -1173,6 +1199,7 @@ public final class HudService extends Service {
                     s.optBoolean("cameraSection", false));
         }
         c.restoreToCount(save6);
+        skyBand = false;
 
         // 세로 기준점을 TPMS 카드와 같은 415 로 맞춘다. 서로 다른 기준점을 쓰면
         // 순정 화면의 위젯 배율 역보정에서 그 차이만큼 사이가 벌어진다.
@@ -1183,21 +1210,22 @@ public final class HudService extends Service {
         c.restoreToCount(nooSave);
 
         int save7 = beginElement(c, l, "lead", 82f, 415f);
-        if (nativeLayoutRendering) {
-            c.translate(0f, NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
-        }
         drawLeadCard(c, p, s.optJSONObject("lead"));
         c.restoreToCount(save7);
 
         int save8 = beginElement(c, l, "tpms", 865f, 415f);
-        if (nativeLayoutRendering) {
-            c.translate(0f, NATIVE_CARD_SHIFT_PX / nativeWidgetScale);
-        }
-        drawTpms(c, p, s.optJSONObject("tpms"));
+        drawTpms(c, p, s);
         c.restoreToCount(save8);
 
         int alertSave = beginElement(c, l, "alert", DRIVE_CX, 336f);
-        drawAlert(c, p, stale ? null : s.optJSONObject("alert"));
+        JSONObject alertBox = stale ? null : s.optJSONObject("alert");
+        if (stale) {
+            resetCountdown();
+        } else if (alertBox == null) {
+            // openpilot 이벤트 알림이 우선. 없을 때만 회전 카운트다운을 같은 자리에 띄운다.
+            alertBox = turnCountdownAlert(s);
+        }
+        drawAlert(c, p, alertBox);
 
         if (stale) {
             p.setShader(null);
@@ -1289,6 +1317,484 @@ public final class HudService extends Service {
         }
     }
 
+    /** 제네시스 순정 경고를 우측 TMAP 중앙의 흰색 팝업으로 표시한다. */
+    private void drawOemWarningPopup(Canvas c, Paint p, JSONObject s) {
+        if (eonStale()) {
+            return;
+        }
+        if (s.optBoolean("aebSystemFault", false)) {
+            drawAebSystemPopup(c, p);
+            return;
+        }
+        if (s.optBoolean("blindSpotSystemFault", false)) {
+            drawBlindSpotSystemPopup(c, p);
+            return;
+        }
+        JSONObject doors = s.optJSONObject("doors");
+        JSONObject windows = s.optJSONObject("windows");
+        // The factory cluster only reminds the driver about open glass while
+        // parked.  Never let a deliberately lowered window cover TMAP while
+        // driving; doors, hood and trunk remain unconditional safety alerts.
+        JSONObject visibleWindows = "P".equals(s.optString("gear", "")) ? windows : null;
+        if (hasVehicleOpening(doors, visibleWindows)) {
+            drawVehicleOpenPopup(c, p, doors, visibleWindows);
+            return;
+        }
+        if (s.optBoolean("lowFuelWarning", false)) {
+            drawLowFuelPopup(c, p, s.optDouble("distanceToEmpty", -1d));
+            return;
+        }
+        drawParkingSensorPopup(c, p, s);
+    }
+
+    private void drawWhiteWarningPanel(Canvas c, Paint p, float cx) {
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.argb(92, 0, 0, 0));
+        scratchRect.set(cx - 176f, 124f, cx + 184f, 402f);
+        c.drawRoundRect(scratchRect, 13f, 13f, p);
+        p.setColor(Color.rgb(250, 251, 252));
+        scratchRect.set(cx - 180f, 118f, cx + 180f, 396f);
+        c.drawRoundRect(scratchRect, 13f, 13f, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(4f);
+        p.setColor(Color.rgb(154, 163, 171));
+        c.drawRoundRect(scratchRect, 13f, 13f, p);
+    }
+
+    /** Factory-cluster AEB/FCA failure message (not an active braking event). */
+    private void drawAebSystemPopup(Canvas c, Paint p) {
+        final float cx = mapCenterX();
+        drawWhiteWarningPanel(c, p, cx);
+        drawWarningTriangle(c, p, cx, 165f, 27f);
+        text(c, p, lang("긴급제동 시스템을", "CHECK EMERGENCY"),
+                cx, 235f, 29f, Color.rgb(35, 39, 43), Paint.Align.CENTER);
+        text(c, p, lang("점검하십시오", "BRAKING SYSTEM"),
+                cx, 272f, 29f, Color.rgb(35, 39, 43), Paint.Align.CENTER);
+
+        // 순정 경고의 충돌 차량 표식을 작은 벡터로 재현한다.
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(7f);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(Color.rgb(226, 159, 22));
+        scratchRect.set(cx - 72f, 318f, cx - 14f, 353f);
+        c.drawRoundRect(scratchRect, 9f, 9f, p);
+        scratchRect.set(cx + 14f, 318f, cx + 72f, 353f);
+        c.drawRoundRect(scratchRect, 9f, 9f, p);
+        c.drawLine(cx - 18f, 335f, cx + 18f, 335f, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        drawCollisionStar(c, p, cx, 311f, 14f);
+    }
+
+    /** Factory blind-spot/LCA failure message and rear-radar pictogram. */
+    private void drawBlindSpotSystemPopup(Canvas c, Paint p) {
+        final float cx = mapCenterX();
+        drawWhiteWarningPanel(c, p, cx);
+        drawWarningTriangle(c, p, cx, 158f, 25f);
+        text(c, p, lang("후측방 경보 시스템을", "CHECK BLIND-SPOT"),
+                cx, 225f, 28f, Color.rgb(35, 39, 43), Paint.Align.CENTER);
+        text(c, p, lang("점검하십시오", "WARNING SYSTEM"),
+                cx, 261f, 28f, Color.rgb(35, 39, 43), Paint.Align.CENTER);
+
+        final int amber = Color.rgb(226, 146, 17);
+        final float cy = 330f;
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(amber);
+        scratchRect.set(cx - 19f, cy - 31f, cx + 19f, cy + 33f);
+        c.drawRoundRect(scratchRect, 9f, 9f, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(5f);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(amber);
+        scratchRect.set(cx - 69f, cy - 29f, cx - 13f, cy + 29f);
+        c.drawArc(scratchRect, 102f, 156f, false, p);
+        scratchRect.set(cx + 13f, cy - 29f, cx + 69f, cy + 29f);
+        c.drawArc(scratchRect, 282f, 156f, false, p);
+        p.setStrokeWidth(3f);
+        scratchRect.set(cx - 88f, cy - 43f, cx - 4f, cy + 43f);
+        c.drawArc(scratchRect, 112f, 136f, false, p);
+        scratchRect.set(cx + 4f, cy - 43f, cx + 88f, cy + 43f);
+        c.drawArc(scratchRect, 292f, 136f, false, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    /** Show every open door, window, hood and trunk in the large TMAP warning area. */
+    private void drawVehicleOpenPopup(Canvas c, Paint p, JSONObject doors,
+                                      JSONObject windows) {
+        final float cx = mapCenterX();
+        final float cy = 288f;
+        drawWhiteWarningPanel(c, p, cx);
+        boolean sideDoorOpen = hasOpenDoor(doors);
+        boolean windowOpen = hasOpenWindow(windows);
+        boolean hoodOpen = doors != null && doors.optBoolean("hood", false);
+        boolean trunkOpen = doors != null && doors.optBoolean("trunk", false);
+        int typeCount = (sideDoorOpen ? 1 : 0) + (windowOpen ? 1 : 0)
+                + (hoodOpen ? 1 : 0) + (trunkOpen ? 1 : 0);
+        String titleKo;
+        String titleEn;
+        if (typeCount > 1) {
+            titleKo = "열림 상태를 확인하십시오";
+            titleEn = "CHECK OPENINGS";
+        } else if (sideDoorOpen) {
+            titleKo = "문이 열려 있습니다";
+            titleEn = "DOOR OPEN";
+        } else if (windowOpen) {
+            titleKo = "창문이 열려 있습니다";
+            titleEn = "WINDOW OPEN";
+        } else if (hoodOpen) {
+            titleKo = "보닛이 열려 있습니다";
+            titleEn = "HOOD OPEN";
+        } else {
+            titleKo = "트렁크가 열려 있습니다";
+            titleEn = "TRUNK OPEN";
+        }
+        text(c, p, lang(titleKo, titleEn),
+                cx, 163f, 29f, Color.rgb(35, 39, 43), Paint.Align.CENTER);
+
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(204, 211, 217));
+        scratchRect.set(cx - 34f, cy - 67f, cx + 34f, cy + 70f);
+        c.drawRoundRect(scratchRect, 15f, 15f, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3f);
+        p.setColor(Color.rgb(71, 79, 86));
+        c.drawRoundRect(scratchRect, 15f, 15f, p);
+        scratchRect.set(cx - 25f, cy - 43f, cx + 25f, cy + 35f);
+        c.drawRoundRect(scratchRect, 10f, 10f, p);
+        c.drawLine(cx - 29f, cy - 20f, cx + 29f, cy - 20f, p);
+        c.drawLine(cx - 29f, cy + 26f, cx + 29f, cy + 26f, p);
+
+        // The front of the vehicle points upward.  Hood and trunk panels
+        // hinge away from the body so their position stays unmistakable.
+        p.setColor(Color.rgb(232, 48, 58));
+        p.setStyle(Paint.Style.FILL);
+        if (hoodOpen) {
+            scratchPath.rewind();
+            scratchPath.moveTo(cx - 31f, cy - 56f);
+            scratchPath.lineTo(cx - 42f, cy - 94f);
+            scratchPath.lineTo(cx + 42f, cy - 94f);
+            scratchPath.lineTo(cx + 31f, cy - 56f);
+            scratchPath.close();
+            c.drawPath(scratchPath, p);
+        }
+        if (trunkOpen) {
+            scratchPath.rewind();
+            scratchPath.moveTo(cx - 31f, cy + 56f);
+            scratchPath.lineTo(cx - 42f, cy + 94f);
+            scratchPath.lineTo(cx + 42f, cy + 94f);
+            scratchPath.lineTo(cx + 31f, cy + 56f);
+            scratchPath.close();
+            c.drawPath(scratchPath, p);
+        }
+        if (doors != null && doors.optBoolean("fl", false)) {
+            drawOpenDoorLeaf(c, p, cx - 31f, cy - 43f, cy - 13f,
+                    cx - 78f, cy - 57f, cy - 23f);
+        }
+        if (doors != null && doors.optBoolean("fr", false)) {
+            drawOpenDoorLeaf(c, p, cx + 31f, cy - 43f, cy - 13f,
+                    cx + 78f, cy - 57f, cy - 23f);
+        }
+        if (doors != null && doors.optBoolean("rl", false)) {
+            drawOpenDoorLeaf(c, p, cx - 31f, cy + 8f, cy + 38f,
+                    cx - 78f, cy + 22f, cy + 56f);
+        }
+        if (doors != null && doors.optBoolean("rr", false)) {
+            drawOpenDoorLeaf(c, p, cx + 31f, cy + 8f, cy + 38f,
+                    cx + 78f, cy + 22f, cy + 56f);
+        }
+
+        // Open glass is blue and remains visible even when its door is also
+        // open.  Each bar follows the matching FL/FR/RL/RR side window.
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(8f);
+        p.setColor(Color.rgb(36, 160, 224));
+        if (windows != null && windows.optBoolean("fl", false)) {
+            c.drawLine(cx - 25f, cy - 40f, cx - 25f, cy - 16f, p);
+        }
+        if (windows != null && windows.optBoolean("fr", false)) {
+            c.drawLine(cx + 25f, cy - 40f, cx + 25f, cy - 16f, p);
+        }
+        if (windows != null && windows.optBoolean("rl", false)) {
+            c.drawLine(cx - 25f, cy + 7f, cx - 25f, cy + 32f, p);
+        }
+        if (windows != null && windows.optBoolean("rr", false)) {
+            c.drawLine(cx + 25f, cy + 7f, cx + 25f, cy + 32f, p);
+        }
+        p.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    /** Factory low-fuel warning, retaining the cluster's remaining range. */
+    private void drawLowFuelPopup(Canvas c, Paint p, double distanceToEmpty) {
+        final float cx = mapCenterX();
+        final int amber = Color.rgb(232, 158, 18);
+        drawWhiteWarningPanel(c, p, cx);
+        drawWarningTriangle(c, p, cx, 158f, 25f);
+        text(c, p, lang("연료가 부족합니다", "LOW FUEL"),
+                cx, 232f, 30f, Color.rgb(35, 39, 43), Paint.Align.CENTER);
+        if (distanceToEmpty >= 0d && distanceToEmpty < 1000d) {
+            text(c, p, lang("주행가능거리 ", "RANGE ")
+                            + Math.round(distanceToEmpty) + " km",
+                    cx, 270f, 20f, Color.rgb(91, 98, 104), Paint.Align.CENTER);
+        }
+
+        p.setShader(null);
+        p.setColor(amber);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(7f);
+        scratchRect.set(cx - 34f, 300f, cx + 14f, 365f);
+        c.drawRoundRect(scratchRect, 7f, 7f, p);
+        scratchRect.set(cx - 23f, 310f, cx + 3f, 329f);
+        c.drawRoundRect(scratchRect, 3f, 3f, p);
+        scratchPath.rewind();
+        scratchPath.moveTo(cx + 14f, 315f);
+        scratchPath.lineTo(cx + 35f, 326f);
+        scratchPath.lineTo(cx + 35f, 354f);
+        scratchPath.quadTo(cx + 35f, 364f, cx + 25f, 364f);
+        scratchPath.lineTo(cx + 14f, 364f);
+        c.drawPath(scratchPath, p);
+        c.drawLine(cx - 42f, 368f, cx + 20f, 368f, p);
+    }
+
+    private void drawWarningTriangle(Canvas c, Paint p, float cx, float cy, float radius) {
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(255, 190, 38));
+        scratchPath.rewind();
+        scratchPath.moveTo(cx, cy - radius);
+        scratchPath.lineTo(cx - radius * 0.92f, cy + radius * 0.75f);
+        scratchPath.lineTo(cx + radius * 0.92f, cy + radius * 0.75f);
+        scratchPath.close();
+        c.drawPath(scratchPath, p);
+        p.setColor(Color.rgb(54, 57, 59));
+        scratchRect.set(cx - 3f, cy - 12f, cx + 3f, cy + 7f);
+        c.drawRoundRect(scratchRect, 3f, 3f, p);
+        c.drawCircle(cx, cy + 15f, 3.5f, p);
+    }
+
+    private void drawCollisionStar(Canvas c, Paint p, float cx, float cy, float radius) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(226, 159, 22));
+        scratchPath.rewind();
+        for (int i = 0; i < 16; i++) {
+            double a = -Math.PI / 2d + i * Math.PI / 8d;
+            float r = (i & 1) == 0 ? radius : radius * 0.42f;
+            float x = cx + (float) Math.cos(a) * r;
+            float y = cy + (float) Math.sin(a) * r;
+            if (i == 0) scratchPath.moveTo(x, y); else scratchPath.lineTo(x, y);
+        }
+        scratchPath.close();
+        c.drawPath(scratchPath, p);
+    }
+
+    /**
+     * Mirror the Genesis PAS11 six-zone parking display.  PAS11 levels are
+     * preserved as 0..7; higher levels are rendered with increasing urgency.
+     * Returns true only when a valid PAS11 frame contains an active sector.
+     */
+    private boolean drawParkingSensorPopup(Canvas c, Paint p, JSONObject s) {
+        JSONObject sensors = s.optJSONObject("parkingSensors");
+        if (sensors == null || !sensors.optBoolean("valid", false)) {
+            return false;
+        }
+        int fl = parkingLevel(sensors, "fl");
+        int fc = parkingLevel(sensors, "fc");
+        int fr = parkingLevel(sensors, "fr");
+        int rl = parkingLevel(sensors, "rl");
+        int rc = parkingLevel(sensors, "rc");
+        int rr = parkingLevel(sensors, "rr");
+        if ((fl | fc | fr | rl | rc | rr) == 0) {
+            return false;
+        }
+
+        final float cx = mapCenterX();
+        final float cy = 270f;
+        drawWhiteWarningPanel(c, p, cx);
+        text(c, p, lang("주차 거리 경고", "PARKING DISTANCE WARNING"),
+                cx, 153f, 22f, Color.rgb(48, 53, 57), Paint.Align.CENTER);
+
+        // Simplified top view keeps the six PAS sectors immediately legible.
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(210, 216, 221));
+        scratchRect.set(cx - 25f, cy - 39f, cx + 25f, cy + 48f);
+        c.drawRoundRect(scratchRect, 13f, 13f, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2f);
+        p.setColor(Color.rgb(82, 91, 98));
+        c.drawRoundRect(scratchRect, 13f, 13f, p);
+        scratchRect.set(cx - 17f, cy - 23f, cx + 17f, cy + 22f);
+        c.drawRoundRect(scratchRect, 8f, 8f, p);
+        p.setStrokeWidth(4f);
+        c.drawLine(cx - 22f, cy - 19f, cx - 29f, cy - 12f, p);
+        c.drawLine(cx + 22f, cy - 19f, cx + 29f, cy - 12f, p);
+
+        // Android arc angles: 270 degrees is forward/up, 90 is rear/down.
+        drawParkingSector(c, p, cx, cy, 207f, 37f, fl);
+        drawParkingSector(c, p, cx, cy, 251.5f, 37f, fc);
+        drawParkingSector(c, p, cx, cy, 296f, 37f, fr);
+        drawParkingSector(c, p, cx, cy, 27f, 37f, rr);
+        drawParkingSector(c, p, cx, cy, 71.5f, 37f, rc);
+        drawParkingSector(c, p, cx, cy, 116f, 37f, rl);
+        return true;
+    }
+
+    private int parkingLevel(JSONObject sensors, String key) {
+        return Math.max(0, Math.min(7, sensors.optInt(key, 0)));
+    }
+
+    private void drawParkingSector(Canvas c, Paint p, float cx, float cy,
+                                   float start, float sweep, int level) {
+        if (level <= 0) {
+            return;
+        }
+        int color = level >= 5 ? Color.rgb(238, 70, 62)
+                : (level >= 3 ? Color.rgb(255, 183, 48) : Color.rgb(98, 207, 112));
+        // Bring high urgency closer to the vehicle while retaining a larger,
+        // easy-to-see stroke on the small external panel.
+        float radius = level >= 5 ? 54f : (level >= 3 ? 63f : 72f);
+        scratchRect.set(cx - radius, cy - radius, cx + radius, cy + radius);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(level >= 5 ? 9f : 7f);
+        p.setColor(color);
+        c.drawArc(scratchRect, start, sweep, false, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    /**
+     * 회전 카운트다운 팝업. carrot-wip carrot_serv.py `_update_countdown_alert()` 와
+     * 같은 규칙이다. 다만 EON 이 아니라 앱에서 계산하므로 remote_hud.py 는 손대지 않는다.
+     *
+     *   남은초 = (turnDist - v) / v          (v: m/s)
+     *   시작초 = clamp(kph/10 + 1, 6, 11)    (빠를수록 일찍 시작)
+     *
+     * 거리(turnDist)는 티맵 guidance_current.distance_m 이 그대로 온 값이라
+     * 튀는 경우가 있어 단조감소로 묶는다.
+     */
+    private JSONObject turnCountdownAlert(JSONObject s) {
+        JSONObject navi = s.optJSONObject("navi");
+        if (navi == null || !navi.optBoolean("active", false)
+                || !navi.optBoolean("guidanceLive", false)) {
+            resetCountdown();
+            return null;
+        }
+
+        // NOO 게이트. 티맵이 회전을 안내하는 것만으로는 뜨지 않고,
+        // desire_helper 가 실제로 회전 조향을 잡았을 때(nooTurnDirection != 0)
+        // 또는 lateral_planner 가 지도경로를 섞기 시작했을 때(nooMapBlend > 0) 뜬다.
+        // 운전자가 반대 토크/지시등/브레이크로 취소하면 noo_driver_cancel 로
+        // 방향이 0 이 되므로 팝업도 같이 사라진다.
+        boolean nooOn = s.optBoolean("nooMode", false) || s.optInt("atcMode", 0) != 0;
+        int nooDir = s.optInt("atcDirection", 0);
+        double nooBlend = s.optDouble("atcBlend", 0d);
+        if (!nooOn || (nooDir == 0 && nooBlend <= 0.005d)) {
+            resetCountdown();
+            return null;
+        }
+        int dist = navi.optInt("turnDist", -1);
+        if (dist <= 0) {
+            resetCountdown();
+            return null;
+        }
+        int kph = Math.max(0, s.optInt("speed", 0));
+        float v = kph / 3.6f;
+        if (v < 1.0f) {
+            // 정차 중엔 "남은초"가 무한대로 튄다. 카운트 자체를 하지 않는다.
+            resetCountdown();
+            return null;
+        }
+
+        int sec = (int) ((Math.max(dist - v, 1f) / v) + 0.5f);
+        if (sec > 11) {
+            resetCountdown();
+            return null;
+        }
+        if (sec > countdownLastSec) {
+            sec = countdownLastSec;
+        }
+        countdownLastSec = sec;
+
+        int maxSec = Math.min(11, Math.max(6, kph / 10 + 1));
+        if (sec > maxSec) {
+            return null;
+        }
+
+        long now = SystemClock.elapsedRealtime();
+        if (sec <= 0) {
+            if (countdownZeroAtMs == 0L) {
+                countdownZeroAtMs = now;
+            }
+            if (now - countdownZeroAtMs > 800L) {
+                return null;
+            }
+        } else {
+            countdownZeroAtMs = 0L;
+        }
+
+        // 방향은 NOO 가 실제로 잡은 쪽을 우선한다(티맵 turn_type 보다 신뢰도가 높다).
+        String turn = nooDir < 0 ? lang("좌회전", "LEFT")
+                : nooDir > 0 ? lang("우회전", "RIGHT")
+                : turnWord(navi.optInt("turnType", 0), navi.optString("title", ""));
+        String head = sec <= 0 ? turn
+                : (Integer.toString(sec) + lang("초 후 ", "s  ") + turn);
+        String title = navi.optString("title", "");
+        if (title.length() > 16) {
+            title = title.substring(0, 16);
+        }
+        String detail = title.length() > 0 ? title + "  ·  " + distanceText(dist) : distanceText(dist);
+        // 지도경로 혼합률. 조향을 얼마나 지도에 맡기고 있는지 바로 보인다.
+        if (nooBlend > 0.005d) {
+            detail = detail + "  ·  NOO " + Math.round(nooBlend * 100d) + "%";
+        } else {
+            detail = detail + "  ·  NOO";
+        }
+
+        JSONObject box = new JSONObject();
+        try {
+            box.put("text1", head);
+            box.put("text2", detail);
+            // 3초 이하면 주황 테두리(drawAlert 의 prompt 색), 그 전엔 흰색.
+            box.put("status", sec <= 3 ? "prompt" : "");
+            box.put("size", "small");
+        } catch (JSONException e) {
+            return null;
+        }
+        return box;
+    }
+
+    private void resetCountdown() {
+        countdownLastSec = 100;
+        countdownZeroAtMs = 0L;
+    }
+
+    /** 카운트다운 문구용 회전 이름. 화살표는 이미 TBT 행에 있으니 글자만 쓴다. */
+    private String turnWord(int type, String label) {
+        switch (turnDirection(type, label)) {
+            case TURN_LEFT:
+                return lang("좌회전", "LEFT");
+            case TURN_RIGHT:
+                return lang("우회전", "RIGHT");
+            case TURN_SLIGHT_LEFT:
+            case TURN_STRAIGHT_LEFT:
+                return lang("좌측방향", "KEEP LEFT");
+            case TURN_SLIGHT_RIGHT:
+            case TURN_STRAIGHT_RIGHT:
+                return lang("우측방향", "KEEP RIGHT");
+            case TURN_LEFT_RIGHT:
+                return lang("좌우분기", "SPLIT");
+            case TURN_UTURN:
+                return lang("유턴", "U-TURN");
+            case TURN_ARRIVE:
+                return lang("목적지", "ARRIVE");
+            default:
+                return lang("직진", "STRAIGHT");
+        }
+    }
+
     /** 연속 공백을 한 칸으로 (renderer.py 의 " ".join(split()) 과 동일) */
     private static String collapse(String value) {
         if (value == null) {
@@ -1328,14 +1834,23 @@ public final class HudService extends Service {
     }
 
     private int ink() {
+        if (skyBand) {
+            return skyLightInk ? Color.rgb(245, 248, 250) : Color.rgb(18, 18, 18);
+        }
         return frameDark ? Color.rgb(238, 242, 246) : Color.rgb(18, 18, 18);
     }
 
     private int dim() {
+        if (skyBand) {
+            return skyLightInk ? Color.rgb(196, 206, 214) : Color.rgb(86, 92, 98);
+        }
         return frameDark ? Color.rgb(140, 152, 163) : Color.rgb(104, 111, 116);
     }
 
     private int muted() {
+        if (skyBand) {
+            return skyLightInk ? Color.rgb(150, 160, 174) : Color.rgb(140, 148, 158);
+        }
         return frameDark ? Color.rgb(88, 98, 108) : Color.rgb(174, 179, 182);
     }
 
@@ -1348,6 +1863,10 @@ public final class HudService extends Service {
     }
 
     private int hairline() {
+        if (skyBand) {
+            return skyLightInk ? Color.argb(110, 255, 255, 255)
+                    : Color.argb(70, 0, 0, 0);
+        }
         return frameDark ? Color.rgb(58, 66, 76) : Color.rgb(202, 207, 210);
     }
 
@@ -1384,7 +1903,9 @@ public final class HudService extends Service {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.BUTT);
 
-        int railColor = frameDark ? Color.rgb(74, 88, 108) : Color.rgb(150, 158, 166);
+        // 밝은 실내광에서 라이트테마 레일(150,158,166)이 흰 배경에 묻혀 안 보였다.
+        // 순정 계기판 링 색을 추출한 값으로 양 테마 통일한다.
+        int railColor = Color.rgb(72, 96, 104);
         int railRed = Color.rgb(226, 72, 77);
 
         // 바깥/안쪽 레일. 바깥면은 예전 아크(r=106, 굵기 10)와 같은 111 이라
@@ -1444,14 +1965,79 @@ public final class HudService extends Service {
                 (int) (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * u));
     }
 
-    private void drawPrnd(Canvas c, Paint p, String gear) {
-        float x = 26f;
-        String[] items = {"P", "R", "N", "D"};
-        for (String g : items) {
-            text(c, p, g, x, 116f, 30f,
-                    g.equals(gear) ? ink() : muted(), Paint.Align.LEFT);
-            x += 42f;
+    /** Single active-gear tile followed by a compact OEM-style coolant bar. */
+    private void drawGearAndCoolant(Canvas c, Paint p, JSONObject s) {
+        String gear = s.optString("gear", "--");
+        boolean parkingBrake = s.optBoolean("parkingBrake", false);
+        float boxLeft = 22f;
+        float boxTop = 82f;
+        float boxSize = 42f;
+
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(parkingBrake ? Color.rgb(210, 42, 52)
+                : (frameDark ? Color.rgb(42, 49, 58) : Color.rgb(248, 249, 250)));
+        scratchRect.set(boxLeft, boxTop, boxLeft + boxSize, boxTop + boxSize);
+        c.drawRoundRect(scratchRect, 6f, 6f, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2f);
+        p.setColor(parkingBrake ? Color.rgb(145, 22, 31)
+                : (frameDark ? Color.rgb(112, 125, 136) : Color.rgb(176, 184, 190)));
+        c.drawRoundRect(scratchRect, 6f, 6f, p);
+        text(c, p, gear, boxLeft + boxSize * 0.5f, 114f, 28f,
+                parkingBrake ? Color.WHITE
+                        : (frameDark ? Color.rgb(240, 243, 246) : Color.rgb(28, 32, 36)),
+                Paint.Align.CENTER);
+
+        JSONObject system = s.optJSONObject("system");
+        double coolant = system == null ? Double.NaN
+                : system.optDouble("coolantTemp", Double.NaN);
+
+        // Enlarge the accepted gauge by 20% and add a small gap from the gear
+        // tile.  Scaling stays anchored to the tile bottom so the lower edge
+        // remains aligned exactly as approved on the vehicle preview.
+        final float coolantScale = 0.924f;
+        int coolantSave = c.save();
+        c.translate(90f, boxTop + boxSize);
+        c.scale(coolantScale, coolantScale);
+
+        final float railLeft = 23f;
+        final float railRight = 130f;
+        final float railY = -4f;
+        text(c, p, "C", 0f, -16f, 18f, ink(), Paint.Align.CENTER);
+        text(c, p, "H", 153f, -16f, 18f, ink(), Paint.Align.CENTER);
+        drawCoolantThermometer(c, p, 76f, -27f);
+
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(4f);
+        p.setColor(frameDark ? Color.rgb(110, 122, 132) : Color.rgb(164, 174, 181));
+        c.drawLine(railLeft, railY, railRight, railY, p);
+        for (int i = 0; i <= 4; i++) {
+            float x = railLeft + (railRight - railLeft) * i / 4f;
+            c.drawLine(x, railY - 4f, x, railY + 4f, p);
         }
+        if (Double.isFinite(coolant) && coolant > -50d && coolant < 200d) {
+            float fraction = (float) Math.max(0d, Math.min(1d, (coolant - 50d) / 70d));
+            p.setStrokeWidth(7f);
+            p.setColor(fraction > 0.86f
+                    ? Color.rgb(226, 67, 70) : Color.rgb(42, 199, 218));
+            c.drawLine(railLeft, railY, railLeft + (railRight - railLeft) * fraction, railY, p);
+        }
+        p.setStrokeCap(Paint.Cap.BUTT);
+        c.restoreToCount(coolantSave);
+    }
+
+    private void drawCoolantThermometer(Canvas c, Paint p, float x, float y) {
+        p.setShader(null);
+        p.setColor(dim());
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2.5f);
+        c.drawLine(x, y - 9f, x, y + 7f, p);
+        c.drawCircle(x, y + 11f, 5f, p);
+        c.drawLine(x - 4f, y - 7f, x + 4f, y - 7f, p);
+        c.drawLine(x - 4f, y - 2f, x + 2f, y - 2f, p);
+        c.drawLine(x - 4f, y + 3f, x + 4f, y + 3f, p);
     }
 
     private void drawModeAndEta(Canvas c, Paint p, JSONObject s) {
@@ -1472,16 +2058,9 @@ public final class HudService extends Service {
         text(c, p, label, lv(l, "modeX", 938f), lv(l, "modeY", 116f), lv(l, "modeSize", 29f),
                 color, Paint.Align.RIGHT);
 
-        JSONObject navi = s.optJSONObject("navi");
-        if (navi == null || !navi.optBoolean("active", false)) {
-            return;
-        }
-        int remain = navi.optInt("remainTime", 0);
-        if (remain <= 0) {
-            return;
-        }
-        long etaMs = System.currentTimeMillis() + remain * 1000L;
-        String eta = new SimpleDateFormat("HH:mm", Locale.KOREA).format(new Date(etaMs));
+        Date now = new Date();
+        String clock = new SimpleDateFormat("h:mm", Locale.KOREA).format(now);
+        String period = new SimpleDateFormat("a", Locale.KOREA).format(now);
         float etaRight = lv(l, "etaRight", 832f);
         float etaY = lv(l, "etaY", 116f);
         float etaTimeSize = lv(l, "etaTimeSize", 27f);
@@ -1489,9 +2068,9 @@ public final class HudService extends Service {
         float gap = lv(l, "etaGap", 8f);
         p.setTypeface(Typeface.create("sans", Typeface.BOLD));
         p.setTextSize(etaTimeSize);
-        float etaWidth = p.measureText(eta);
-        text(c, p, eta, etaRight, etaY, etaTimeSize, ink(), Paint.Align.RIGHT);
-        text(c, p, lang("도착", "ETA"), etaRight - etaWidth - gap, etaY - 1f, etaLabelSize,
+        float clockWidth = p.measureText(clock);
+        text(c, p, clock, etaRight, etaY, etaTimeSize, ink(), Paint.Align.RIGHT);
+        text(c, p, period, etaRight - clockWidth - gap, etaY - 1f, etaLabelSize,
                 dim(), Paint.Align.RIGHT);
     }
 
@@ -1520,6 +2099,207 @@ public final class HudService extends Service {
 
     private static float fuelIconWidth(float h) {
         return h * 0.80f;
+    }
+
+    private void drawOutsideTemp(Canvas c, Paint p, JSONObject s) {
+        feedWeather(s);
+        double temp = s.optDouble("outsideTemp", -1000d);
+        if (!Double.isFinite(temp) || temp < -50d || temp > 80d) {
+            return;
+        }
+        String label = String.format(Locale.US, "%.0f°C", temp);
+        // 우측 끝 790 — 오른쪽 주유기 아이콘(932 기준 유동)과 40px 를 남긴다.
+        text(c, p, label, 790f, 44f, 22f, ink(), Paint.Align.RIGHT);
+        int icon = weather == null ? WeatherService.ICON_NONE : weather.icon();
+        if (icon == WeatherService.ICON_NONE) {
+            return;
+        }
+        p.setTextSize(22f);
+        p.setTypeface(Typeface.create("sans", Typeface.BOLD));
+        float labelWidth = p.measureText(label);
+        drawWeatherIcon(c, p, 790f - labelWidth - 10f - 13f, 36f, 26f,
+                icon, weather.isDay());
+    }
+
+    /**
+     * 상단 밴드 배경. 날씨 상태가 바뀔 때만 비트맵을 만들고 매 프레임은
+     * 얹기만 한다. 하늘이 어두우면 밴드 안 글자색을 밝은 쪽으로 뒤집는다.
+     */
+    private void drawSkyBand(Canvas c, Paint p) {
+        skyBand = false;
+        if (weather == null) {
+            return;
+        }
+        int icon = weather.icon();
+        if (icon == WeatherService.ICON_NONE) {
+            return;
+        }
+        SkyBackground.Sky sky = SkyBackground.get(icon, weather.isDay(),
+                weather.cloudPercent(), DRIVE_RIGHT, ModelWorldGL.TOP);
+        if (sky == null || sky.bitmap == null || sky.bitmap.isRecycled()) {
+            return;
+        }
+        p.setShader(null);
+        p.setColorFilter(null);
+        p.setAlpha(255);
+        c.drawBitmap(sky.bitmap, 0f, 0f, p);
+        skyBand = true;
+        skyLightInk = sky.lightInk;
+    }
+
+    /** 티맵이 주는 좌표를 날씨 조회에 넘긴다. 실제 요청은 서비스가 판단한다. */
+    private void feedWeather(JSONObject s) {
+        if (weather == null || s == null) {
+            return;
+        }
+        // EON 은 정밀 GPS 를 전송하지 않고, TMAP 안내가 꺼져 있으면 navi 자체가
+        // 비어서 내려온다. 그래서 날씨 좌표는 최상위 wxPos 를 먼저 본다.
+        JSONArray pos = s.optJSONArray("wxPos");
+        if (pos == null || pos.length() < 2) {
+            JSONObject navi = s.optJSONObject("navi");
+            JSONObject scene = navi == null ? null : navi.optJSONObject("scene");
+            pos = scene == null ? null : scene.optJSONArray("pos");
+        }
+        if (pos == null || pos.length() < 2) {
+            return;
+        }
+        weather.onPosition(pos.optDouble(0, Double.NaN), pos.optDouble(1, Double.NaN));
+    }
+
+    /**
+     * 하늘상태 아이콘. PNG 없이 벡터로 그린다.
+     * 구름은 테마색, 해·달·비·눈·번개만 컬러다.
+     */
+    private void drawWeatherIcon(Canvas c, Paint p, float cx, float cy,
+                                 float size, int icon, boolean day) {
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        float u = size / 26f;
+        switch (icon) {
+            case WeatherService.ICON_CLEAR:
+                if (day) {
+                    drawSunDisc(c, p, cx, cy, 7.5f * u, true);
+                } else {
+                    drawMoon(c, p, cx, cy, 8f * u);
+                }
+                break;
+            case WeatherService.ICON_FEW:
+                if (day) {
+                    drawSunDisc(c, p, cx + 5f * u, cy - 5f * u, 5.5f * u, true);
+                } else {
+                    drawMoon(c, p, cx + 5f * u, cy - 5f * u, 5.5f * u);
+                }
+                drawCloud(c, p, cx - 1f * u, cy + 3f * u, u, ink());
+                break;
+            case WeatherService.ICON_OVERCAST:
+                drawCloud(c, p, cx + 3f * u, cy - 3f * u, u * 0.78f, dim());
+                drawCloud(c, p, cx - 2f * u, cy + 2f * u, u, ink());
+                break;
+            case WeatherService.ICON_FOG:
+                drawCloud(c, p, cx, cy - 3f * u, u * 0.9f, ink());
+                p.setColor(dim());
+                p.setStrokeWidth(2f * u);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                c.drawLine(cx - 8f * u, cy + 6f * u, cx + 8f * u, cy + 6f * u, p);
+                c.drawLine(cx - 5f * u, cy + 10f * u, cx + 7f * u, cy + 10f * u, p);
+                p.setStyle(Paint.Style.FILL);
+                break;
+            case WeatherService.ICON_RAIN:
+                drawCloud(c, p, cx, cy - 3f * u, u, ink());
+                p.setColor(wxRain());
+                p.setStrokeWidth(2.2f * u);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                for (int i = -1; i <= 1; i++) {
+                    float x = cx + i * 5.5f * u;
+                    c.drawLine(x + 1.5f * u, cy + 5f * u,
+                            x - 1.5f * u, cy + 10f * u, p);
+                }
+                p.setStyle(Paint.Style.FILL);
+                break;
+            case WeatherService.ICON_SNOW:
+                drawCloud(c, p, cx, cy - 3f * u, u, ink());
+                p.setColor(wxSnow());
+                for (int i = -1; i <= 1; i++) {
+                    c.drawCircle(cx + i * 5.5f * u, cy + 8f * u, 1.9f * u, p);
+                }
+                break;
+            case WeatherService.ICON_THUNDER:
+                drawCloud(c, p, cx, cy - 3f * u, u, ink());
+                p.setColor(wxBolt());
+                scratchPath.rewind();
+                scratchPath.moveTo(cx + 1.5f * u, cy + 3f * u);
+                scratchPath.lineTo(cx - 3.5f * u, cy + 11f * u);
+                scratchPath.lineTo(cx - 0.5f * u, cy + 11f * u);
+                scratchPath.lineTo(cx - 2.5f * u, cy + 16f * u);
+                scratchPath.lineTo(cx + 4f * u, cy + 8f * u);
+                scratchPath.lineTo(cx + 0.5f * u, cy + 8f * u);
+                scratchPath.close();
+                c.drawPath(scratchPath, p);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void drawCloud(Canvas c, Paint p, float cx, float cy, float u, int color) {
+        p.setColor(color);
+        c.drawCircle(cx - 4.5f * u, cy + 0.5f * u, 4.2f * u, p);
+        c.drawCircle(cx + 0.5f * u, cy - 2.2f * u, 5.4f * u, p);
+        c.drawCircle(cx + 5.5f * u, cy + 0.5f * u, 4.0f * u, p);
+        c.drawRect(cx - 4.5f * u, cy + 0.2f * u, cx + 5.5f * u, cy + 4.4f * u, p);
+    }
+
+    private void drawSunDisc(Canvas c, Paint p, float cx, float cy, float r,
+                             boolean rays) {
+        p.setColor(wxSun());
+        c.drawCircle(cx, cy, r, p);
+        if (!rays) {
+            return;
+        }
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(r * 0.30f);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        for (int i = 0; i < 8; i++) {
+            double a = Math.PI * i / 4.0;
+            float sx = cx + (float) Math.cos(a) * r * 1.45f;
+            float sy = cy + (float) Math.sin(a) * r * 1.45f;
+            float ex = cx + (float) Math.cos(a) * r * 1.95f;
+            float ey = cy + (float) Math.sin(a) * r * 1.95f;
+            c.drawLine(sx, sy, ex, ey, p);
+        }
+        p.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawMoon(Canvas c, Paint p, float cx, float cy, float r) {
+        Path full = new Path();
+        full.addCircle(cx, cy, r, Path.Direction.CW);
+        Path bite = new Path();
+        bite.addCircle(cx + r * 0.55f, cy - r * 0.42f, r * 0.88f, Path.Direction.CW);
+        full.op(bite, Path.Op.DIFFERENCE);
+        p.setColor(wxMoon());
+        c.drawPath(full, p);
+    }
+
+    private int wxSun() {
+        return frameDark ? Color.rgb(255, 196, 64) : Color.rgb(240, 164, 24);
+    }
+
+    private int wxMoon() {
+        return frameDark ? Color.rgb(154, 168, 188) : Color.rgb(122, 138, 160);
+    }
+
+    private int wxRain() {
+        return frameDark ? Color.rgb(96, 170, 255) : Color.rgb(38, 120, 214);
+    }
+
+    private int wxSnow() {
+        return frameDark ? Color.rgb(198, 224, 255) : Color.rgb(96, 150, 200);
+    }
+
+    private int wxBolt() {
+        return frameDark ? Color.rgb(255, 206, 84) : Color.rgb(232, 160, 20);
     }
 
     /** 주유기 아이콘. PNG 없이 벡터로 그린다.
@@ -1564,18 +2344,247 @@ public final class HudService extends Service {
     }
 
     private void drawLights(Canvas c, Paint p, JSONObject s) {
+        // 상태 아이콘 줄의 원래 시작 위치는 유지한다. 순정 계기판 사진과 같은
+        // 래스터 자산을 축소해 그리며, 자산 누락 때만 기존 벡터를 사용한다.
+        final float y = 36f;
         float x = 21f;
+        boolean raster = statusIcons != null && !statusIcons.isRecycled();
         if (s.optBoolean("lowBeam", false)) {
-            drawLamp(c, p, x, 28f, 0);
-            x += 45f;
+            // lowBeam is already the vehicle's combined tail/headlamp state.
+            // Drawing both sprite slots here made a low-beam-only state look
+            // as if low and high beams were active together.  Slot 1 is the
+            // low-beam icon; high beam remains controlled only by highBeam.
+            if (raster) {
+                drawStatusIcon(c, p, 1, x, y, 38f, 27f);
+                x += 43f;
+            } else {
+                drawLamp(c, p, x, y, 0);
+                x += 45f;
+            }
         }
-        if (s.optBoolean("highBeam", false)) {
-            drawLamp(c, p, x, 28f, 1);
-            x += 45f;
+        if (s.optBoolean("highBeam", false)) { drawLamp(c, p, x, y, 1); x += 45f; }
+        if (s.optBoolean("frontFog", false)) { drawLamp(c, p, x, y, 2); x += 45f; }
+        if (s.optBoolean("seatbeltUnlatched", false)) {
+            if (raster) drawStatusIcon(c, p, 2, x, y, 28f, 31f);
+            else drawSeatbeltIcon(c, p, x + 7f, y);
+            x += 34f;
         }
-        if (s.optBoolean("frontFog", false)) {
-            drawLamp(c, p, x, 28f, 2);
+        int wiperMode = visibleWiperMode(s.optInt("wiperMode", 0));
+        if (wiperMode != 0) {
+            boolean highlighted = SystemClock.elapsedRealtime() - wiperModeChangedElapsed
+                    <= WIPER_MODE_HIGHLIGHT_MS;
+            drawWiperStatus(c, p, x, y, wiperMode, highlighted);
         }
+    }
+
+    /**
+     * OFF 는 즉시 숨기고, 순간 입력인 MIST 만 2.5초 동안 유지한다. AUTO/INT/LOW/HIGH
+     * 는 선택된 동안 계속 표시해 운전자가 현재 레버 위치를 바로 확인할 수 있게 한다.
+     */
+    private int visibleWiperMode(int rawMode) {
+        int mode = Math.max(0, Math.min(5, rawMode));
+        long now = SystemClock.elapsedRealtime();
+        if (mode != lastRawWiperMode) {
+            int previous = lastRawWiperMode;
+            lastRawWiperMode = mode;
+            if (mode != 0) {
+                heldWiperMode = mode;
+                wiperModeChangedElapsed = now;
+            } else if (previous != 5) {
+                heldWiperMode = 0;
+            }
+        }
+        if (mode != 0) return mode;
+        if (heldWiperMode == 5
+                && now - wiperModeChangedElapsed <= WIPER_MODE_HIGHLIGHT_MS) {
+            return heldWiperMode;
+        }
+        heldWiperMode = 0;
+        return 0;
+    }
+
+    /** 문 열림 상태 바로 오른쪽에 붙는 소형 와이퍼 아이콘과 모드명. */
+    private void drawWiperStatus(Canvas c, Paint p, float left, float cy, int mode,
+                                 boolean highlighted) {
+        String label;
+        switch (mode) {
+            case 1: label = "AUTO"; break;
+            case 2: label = "INT"; break;
+            case 3: label = "LOW"; break;
+            case 4: label = "HIGH"; break;
+            case 5: label = "MIST"; break;
+            default: return;
+        }
+
+        int color = mode == 1 ? Color.rgb(42, 145, 235) : ink();
+        float right = left + ("HIGH".equals(label) ? 83f : 77f);
+        if (highlighted) {
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(frameDark ? Color.rgb(47, 56, 66) : Color.rgb(222, 229, 234));
+            scratchRect.set(left - 5f, cy - 20f, right, cy + 20f);
+            c.drawRoundRect(scratchRect, 8f, 8f, p);
+        }
+
+        // Windshield outline and a single swept blade, kept vector-only so it
+        // remains crisp at the small status-row size.
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeJoin(Paint.Join.ROUND);
+        p.setStrokeWidth(2.6f);
+        p.setColor(color);
+        scratchRect.set(left, cy - 13f, left + 28f, cy + 14f);
+        c.drawArc(scratchRect, 205f, 130f, false, p);
+        c.drawLine(left + 4f, cy + 7f, left + 24f, cy - 5f, p);
+        c.drawLine(left + 4f, cy + 7f, left + 1f, cy + 12f, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        text(c, p, label, left + 34f, cy + 6f, 15f, color, Paint.Align.LEFT);
+    }
+
+    /** 투명 PNG 스프라이트에서 아이콘 한 개만 잘라 원래 상태표시 줄에 그린다. */
+    private void drawStatusIcon(Canvas c, Paint p, int index, float left, float cy,
+                                float width, float height) {
+        if (statusIcons == null || statusIcons.isRecycled()) return;
+        final float[][] bounds = {
+                {0.04f, 0.30f, 0.25f, 0.68f},
+                {0.32f, 0.30f, 0.53f, 0.68f},
+                {0.56f, 0.24f, 0.73f, 0.76f},
+                {0.77f, 0.22f, 0.95f, 0.78f}
+        };
+        if (index < 0 || index >= bounds.length) return;
+        float[] b = bounds[index];
+        int sw = statusIcons.getWidth();
+        int sh = statusIcons.getHeight();
+        scratchIRect.set(Math.round(sw * b[0]), Math.round(sh * b[1]),
+                Math.round(sw * b[2]), Math.round(sh * b[3]));
+        scratchRect.set(left, cy - height * 0.5f, left + width, cy + height * 0.5f);
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setAlpha(255);
+        // 주간의 흰 배경에서는 흰 차체가 사라지므로 문 열림 아이콘에만
+        // 진회색 변환을 건다. 빨간 문은 행렬상 원래 색을 유지한다.
+        p.setColorFilter(index == 3 && !frameDark ? dayDoorFilter : null);
+        p.setFilterBitmap(true);
+        c.drawBitmap(statusIcons, scratchIRect, scratchRect, p);
+        p.setColorFilter(null);
+    }
+
+    /**
+     * 순정 PNG의 차체만 사용하고 실제 FL/FR/RL/RR 신호에 해당하는 문을
+     * 빨간색으로 표시한다. 기존 PNG에 고정된 운전석 문은 소스 크롭에서 제외한다.
+     */
+    private void drawDoorStatus(Canvas c, Paint p, float left, float cy, JSONObject doors) {
+        if (statusIcons == null || statusIcons.isRecycled()) {
+            drawDoorWarning(c, p, left + 9f, cy, doors);
+            return;
+        }
+
+        int sw = statusIcons.getWidth();
+        int sh = statusIcons.getHeight();
+        scratchIRect.set(Math.round(sw * 0.835f), Math.round(sh * 0.22f),
+                Math.round(sw * 0.95f), Math.round(sh * 0.78f));
+        float bodyLeft = left + 6f;
+        float bodyRight = left + 29f;
+        scratchRect.set(bodyLeft, cy - 15.5f, bodyRight, cy + 15.5f);
+        p.setShader(null);
+        p.setStyle(Paint.Style.FILL);
+        p.setAlpha(255);
+        p.setColorFilter(!frameDark ? dayDoorFilter : null);
+        p.setFilterBitmap(true);
+        c.drawBitmap(statusIcons, scratchIRect, scratchRect, p);
+        p.setColorFilter(null);
+
+        p.setColor(Color.rgb(238, 45, 55));
+        if (doors.optBoolean("fl", false)) {
+            drawOpenDoorLeaf(c, p, bodyLeft + 1f, cy - 9f, cy - 3f,
+                    left - 1f, cy - 12f, cy - 6f);
+        }
+        if (doors.optBoolean("fr", false)) {
+            drawOpenDoorLeaf(c, p, bodyRight - 1f, cy - 9f, cy - 3f,
+                    left + 36f, cy - 12f, cy - 6f);
+        }
+        if (doors.optBoolean("rl", false)) {
+            drawOpenDoorLeaf(c, p, bodyLeft + 1f, cy + 3f, cy + 9f,
+                    left - 1f, cy + 6f, cy + 12f);
+        }
+        if (doors.optBoolean("rr", false)) {
+            drawOpenDoorLeaf(c, p, bodyRight - 1f, cy + 3f, cy + 9f,
+                    left + 36f, cy + 6f, cy + 12f);
+        }
+    }
+
+    private void drawOpenDoorLeaf(Canvas c, Paint p, float hingeX, float hingeTop,
+                                  float hingeBottom, float outerX, float outerTop,
+                                  float outerBottom) {
+        float inward = outerX < hingeX ? 1.8f : -1.8f;
+        scratchPath.rewind();
+        scratchPath.moveTo(hingeX, hingeTop);
+        scratchPath.lineTo(outerX, outerTop);
+        scratchPath.lineTo(outerX + inward, outerBottom);
+        scratchPath.lineTo(hingeX, hingeBottom);
+        scratchPath.close();
+        p.setStyle(Paint.Style.FILL);
+        c.drawPath(scratchPath, p);
+    }
+
+    private boolean hasOpenDoor(JSONObject doors) {
+        return doors != null && (doors.optBoolean("fl", false)
+                || doors.optBoolean("fr", false) || doors.optBoolean("rl", false)
+                || doors.optBoolean("rr", false));
+    }
+
+    private boolean hasOpenWindow(JSONObject windows) {
+        return windows != null && (windows.optBoolean("fl", false)
+                || windows.optBoolean("fr", false) || windows.optBoolean("rl", false)
+                || windows.optBoolean("rr", false));
+    }
+
+    private boolean hasVehicleOpening(JSONObject doors, JSONObject windows) {
+        return hasOpenDoor(doors) || hasOpenWindow(windows)
+                || (doors != null && (doors.optBoolean("hood", false)
+                || doors.optBoolean("trunk", false)));
+    }
+
+    private void drawSeatbeltIcon(Canvas c, Paint p, float x, float y) {
+        int red = Color.rgb(230, 48, 58);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeJoin(Paint.Join.ROUND);
+        p.setStrokeWidth(4f);
+        p.setColor(red);
+        c.drawCircle(x, y - 10f, 4f, p);
+        scratchPath.rewind();
+        scratchPath.moveTo(x - 2f, y - 5f);
+        scratchPath.lineTo(x - 7f, y + 11f);
+        scratchPath.lineTo(x + 8f, y + 11f);
+        scratchPath.lineTo(x + 3f, y - 3f);
+        c.drawPath(scratchPath, p);
+        c.drawLine(x - 6f, y - 4f, x + 8f, y + 13f, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+    }
+
+    private void drawDoorWarning(Canvas c, Paint p, float cx, float cy, JSONObject doors) {
+        final float left = cx - 7f, right = cx + 7f;
+        final float top = cy - 13f, bottom = cy + 13f;
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeJoin(Paint.Join.ROUND);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(2.5f);
+        p.setColor(ink());
+        scratchRect.set(left, top, right, bottom);
+        c.drawRoundRect(scratchRect, 4f, 4f, p);
+        c.drawLine(left + 2f, cy - 5f, right - 2f, cy - 5f, p);
+        c.drawLine(left + 2f, cy + 6f, right - 2f, cy + 6f, p);
+        p.setStrokeWidth(4f);
+        p.setColor(Color.rgb(230, 48, 58));
+        if (doors.optBoolean("fl", false)) c.drawLine(left, cy - 7f, left - 8f, cy - 12f, p);
+        if (doors.optBoolean("fr", false)) c.drawLine(right, cy - 7f, right + 8f, cy - 12f, p);
+        if (doors.optBoolean("rl", false)) c.drawLine(left, cy + 4f, left - 8f, cy + 10f, p);
+        if (doors.optBoolean("rr", false)) c.drawLine(right, cy + 4f, right + 8f, cy + 10f, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
     }
 
     private void drawLamp(Canvas c, Paint p, float x, float y, int kind) {
@@ -1605,14 +2614,18 @@ public final class HudService extends Service {
         }
     }
 
-    private void drawSteeringWheel(Canvas c, Paint p, float cx, float cy, float angle, boolean enabled) {
+    private void drawSteeringWheel(Canvas c, Paint p, float cx, float cy, float angle,
+                                   boolean enabled, int steerWarning) {
         if (wheelImage != null && !wheelImage.isRecycled()) {
-            drawWheelImage(c, p, cx, cy, angle, enabled);
+            drawWheelImage(c, p, cx, cy, angle, enabled, steerWarning);
             return;
         }
         p.setShader(null);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(enabled ? Color.rgb(18, 95, 225) : Color.rgb(92, 101, 107));
+        int wheelBg = steerWarning >= 2 ? Color.rgb(210, 42, 52)
+                : (steerWarning == 1 ? Color.rgb(242, 177, 38)
+                : (enabled ? Color.rgb(18, 95, 225) : Color.rgb(92, 101, 107)));
+        p.setColor(wheelBg);
         c.drawCircle(cx, cy, 36f, p);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(4f);
@@ -1631,7 +2644,8 @@ public final class HudService extends Service {
 
     /** hud_wheel.png 을 지름 72px 원 안에 맞춰 조향각만큼 회전시켜 그린다.
      *  해제 상태에서는 회색조 + 반투명으로 낮춰 기존 벡터 핸들과 같은 인상을 유지한다. */
-    private void drawWheelImage(Canvas c, Paint p, float cx, float cy, float angle, boolean enabled) {
+    private void drawWheelImage(Canvas c, Paint p, float cx, float cy, float angle,
+                                boolean enabled, int steerWarning) {
         float target = 72f;
         int w = wheelImage.getWidth();
         int h = wheelImage.getHeight();
@@ -1652,19 +2666,23 @@ public final class HudService extends Service {
         p.setColorFilter(null);
         p.setAlpha(255);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(enabled ? Color.rgb(18, 95, 225) : Color.rgb(92, 101, 107));
+        int wheelBg = steerWarning >= 2 ? Color.rgb(210, 42, 52)
+                : (steerWarning == 1 ? Color.rgb(242, 177, 38)
+                : (enabled ? Color.rgb(18, 95, 225) : Color.rgb(92, 101, 107)));
+        p.setColor(wheelBg);
         c.drawCircle(cx, cy, 34f, p);
 
+        boolean vivid = enabled || steerWarning > 0;
         p.setFilterBitmap(true);
-        p.setColorFilter(enabled ? null : wheelGrayFilter());
-        p.setAlpha(enabled ? 255 : 170);
+        p.setColorFilter(vivid ? null : wheelGrayFilter());
+        p.setAlpha(vivid ? 255 : 170);
         c.drawBitmap(wheelImage, wheelMatrix, p);
         p.setColorFilter(null);
         p.setAlpha(255);
 
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(3f);
-        p.setColor(enabled ? Color.rgb(18, 95, 225) : Color.rgb(92, 101, 107));
+        p.setColor(wheelBg);
         c.drawCircle(cx, cy, 36f, p);
     }
 
@@ -1697,19 +2715,35 @@ public final class HudService extends Service {
         }
     }
 
-    private void drawSetSpeed(Canvas c, Paint p, float cx, float cy, int set, boolean enabled) {
+    /** SET 원이 전방충돌 경고도 함께 표시한다. AEB(빨강)가 FCW(노랑)보다 우선한다. */
+    private void drawSetSpeed(Canvas c, Paint p, float cx, float cy, int set,
+                              boolean enabled, JSONObject s) {
         boolean valid = enabled && set > 0 && set < 255;
-        int accent = valid ? Color.rgb(18, 149, 224) : Color.rgb(139, 147, 152);
+        boolean aeb = s.optBoolean("stockAeb", false);
+        boolean fcw = !aeb && s.optBoolean("stockFcw", false);
+        int inactiveAccent = frameDark
+                ? Color.rgb(139, 147, 152) : Color.rgb(88, 98, 106);
+        int accent = aeb ? Color.rgb(210, 42, 52)
+                : (fcw ? Color.rgb(214, 151, 20)
+                : (valid ? Color.rgb(18, 149, 224) : inactiveAccent));
+        int fill = aeb ? Color.rgb(230, 48, 58)
+                : (fcw ? Color.rgb(255, 205, 52)
+                : (frameDark ? Color.rgb(26, 32, 40) : Color.rgb(232, 235, 237)));
+        // This value sits inside its own opaque badge. Using sky-band ink here
+        // made cloudy daytime skies select white text on the white daytime badge.
+        int valueColor = aeb ? Color.WHITE : (fcw ? Color.rgb(28, 30, 32)
+                : (frameDark ? Color.rgb(238, 242, 246) : Color.rgb(18, 18, 18)));
+
         p.setShader(null);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(frameDark ? Color.rgb(26, 32, 40) : Color.rgb(246, 247, 247));
+        p.setColor(fill);
         c.drawCircle(cx, cy, 36f, p);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(6f);
         p.setColor(accent);
         c.drawCircle(cx, cy, 36f, p);
         text(c, p, valid ? Integer.toString(set) : "--", cx, cy + 9f, 29f,
-                ink(), Paint.Align.CENTER);
+                valueColor, Paint.Align.CENTER);
         text(c, p, "SET", cx, cy + 55f, 14f, accent, Paint.Align.CENTER);
     }
 
@@ -1800,19 +2834,37 @@ public final class HudService extends Service {
                 145f, 440f, 17f, ink(), Paint.Align.RIGHT);
     }
 
-    private void drawTpms(Canvas c, Paint p, JSONObject tpms) {
+    private static final float TPMS_LOW_PSI = 30f;
+
+    private void drawTpms(Canvas c, Paint p, JSONObject s) {
+        JSONObject tpms = s.optJSONObject("tpms");
+        float fl = tpmsValue(tpms, "fl"), fr = tpmsValue(tpms, "fr");
+        float rl = tpmsValue(tpms, "rl"), rr = tpmsValue(tpms, "rr");
+        boolean lowFl = tpmsLow(fl), lowFr = tpmsLow(fr);
+        boolean lowRl = tpmsLow(rl), lowRr = tpmsLow(rr);
+        boolean warning = lowFl || lowFr || lowRl || lowRr;
+        // 카드 배경은 항상 기본. 경고는 가운데 차체 표시만 노란색으로 바꾼다.
         scratchRect.set(791f, 376f, 939f, 454f);
         drawCard(c, p, scratchRect);
-        text(c, p, "TPMS", 865f, 394f, 12f, dim(), Paint.Align.CENTER);
+        int normalText = ink();
+        int titleColor = dim();
+        int lowText = Color.rgb(205, 30, 42);
+        text(c, p, "TPMS", 865f, 394f, 12f, titleColor, Paint.Align.CENTER);
         p.setShader(null);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.rgb(95, 102, 107));
+        p.setColor(warning
+                ? (frameDark ? Color.rgb(232, 176, 32) : Color.rgb(245, 190, 40))
+                : Color.rgb(95, 102, 107));
         scratchRect.set(852f, 404f, 878f, 446f);
         c.drawRoundRect(scratchRect, 4f, 4f, p);
-        text(c, p, tpmsText(tpmsValue(tpms, "fl")), 840f, 417f, 16f, ink(), Paint.Align.RIGHT);
-        text(c, p, tpmsText(tpmsValue(tpms, "fr")), 890f, 417f, 16f, ink(), Paint.Align.LEFT);
-        text(c, p, tpmsText(tpmsValue(tpms, "rl")), 840f, 443f, 16f, ink(), Paint.Align.RIGHT);
-        text(c, p, tpmsText(tpmsValue(tpms, "rr")), 890f, 443f, 16f, ink(), Paint.Align.LEFT);
+        text(c, p, tpmsText(fl), 840f, 417f, 16f, lowFl ? lowText : normalText, Paint.Align.RIGHT);
+        text(c, p, tpmsText(fr), 890f, 417f, 16f, lowFr ? lowText : normalText, Paint.Align.LEFT);
+        text(c, p, tpmsText(rl), 840f, 443f, 16f, lowRl ? lowText : normalText, Paint.Align.RIGHT);
+        text(c, p, tpmsText(rr), 890f, 443f, 16f, lowRr ? lowText : normalText, Paint.Align.LEFT);
+    }
+
+    private boolean tpmsLow(float value) {
+        return value >= 5f && value <= 60f && value < TPMS_LOW_PSI;
     }
 
     private String tpmsText(float v) {
@@ -1854,37 +2906,83 @@ public final class HudService extends Service {
 
     /**
      * NOO 안내 — 지도 패널의 카드를 없애고 주행 패널 한가운데에 표시한다.
-     * 화살표는 0.5 초 주기로 깜박이며 테마색(낮 검정 / 밤 흰색)을 따르고,
-     * 그 아래 남은거리는 같은 색으로 깜박이지 않고 계속 떠 있는다.
+     * 화살표와 남은거리는 안내가 살아 있을 때만, 상태줄은 항상 표시한다.
+     * 색은 동작 중이면 테마색(낮 검정 / 밤 흰색), 대기 중이면 흐린색.
      */
     private void drawNooTurn(Canvas c, Paint p, JSONObject s) {
         JSONObject navi = s.optJSONObject("navi");
         int nooMode = s.optInt("nooMode", s.optInt("atcMode", 0));  // legacy wire key fallback
-        if (nooMode < 1 || navi == null || !navi.optBoolean("active", false)) {
-            return;
-        }
-        if (!navi.optBoolean("guidanceLive", false)) {
-            return;
-        }
-        int dist = navi.optInt("turnDist", -1);
-        if (dist < 0) {
-            return;
-        }
-        // 목적지(경로)가 살아 있을 때만 표시한다. 안내 없이 떠 있지 않도록.
-        if (navi.optInt("remainDist", 0) <= 0) {
-            return;
-        }
-        int color = ink();
-        // 남은거리를 turnDist(회전까지) 로 쓴다. 목적지까지 총 거리로 바꾸려면
-        // 아래 dist 를 navi.optInt("remainDist", 0) 으로 바꾸면 된다.
-        if (((SystemClock.elapsedRealtime() / NOO_BLINK_MS) & 1L) == 0L) {
+        boolean guidance = navi != null && navi.optBoolean("active", false)
+                && navi.optBoolean("guidanceLive", false)
+                && navi.optInt("remainDist", 0) > 0;
+        int dist = guidance ? navi.optInt("turnDist", -1) : -1;
+        boolean armed = nooMode >= 1 && guidance && dist >= 0;
+        int color = armed ? ink() : dim();
+
+        // 화살표는 안내가 살아 있을 때만, 깜박이지 않고 계속 떠 있는다.
+        if (armed) {
             if (!drawTurnIcon(c, p, NOO_CX, NOO_CY, NOO_ICON_H, navi.optInt("turnType", 0),
                     navi.optString("title", ""), color, true)) {
                 drawScaledArrow(c, p, NOO_CX, NOO_CY, navi.optInt("turnType", 0),
                         NOO_ARROW_SCALE, navi.optString("title", ""), color);
             }
+            text(c, p, distanceText(dist), NOO_CX, NOO_CY + NOO_TEXT_DY, 28f, color,
+                    Paint.Align.CENTER);
         }
-        text(c, p, distanceText(dist), NOO_CX, NOO_CY + NOO_TEXT_DY, 28f, color, Paint.Align.CENTER);
+        // 상태 줄은 안내가 없어도 항상 뜬다. NOO 가 무엇을 할 참인지(몇 m 앞
+        // 어느 방향) 또는 왜 못 하는지를 한 줄로 알려준다.
+        text(c, p, nooEventText(s, nooMode, guidance, dist), NOO_CX, NOO_CY + NOO_LANE_DY,
+                NOO_LANE_SIZE, color, Paint.Align.CENTER);
+    }
+
+    private String nooSide(int direction) {
+        return direction < 0 ? lang("좌", "L") : lang("우", "R");
+    }
+
+    /**
+     * NOO 상태 한 줄. 우선순위는 실제로 무엇을 하고 있는지 → 무엇을 할 참인지 →
+     * 왜 못 하는지 순이다.
+     */
+    private String nooEventText(JSONObject s, int nooMode, boolean guidance, int dist) {
+        if (nooMode < 1) {
+            return lang("NOO 꺼짐", "NOO OFF");
+        }
+        JSONObject noo = s.optJSONObject("noo");
+        int laneDir = noo == null ? 0 : noo.optInt("dir", 0);
+        int cur = noo == null ? 0 : noo.optInt("cur", 0);
+        int tgt = noo == null ? 0 : noo.optInt("tgt", 0);
+        int cam = noo == null ? 0 : noo.optInt("cam", 0);
+        int map = noo == null ? 0 : noo.optInt("map", 0);
+        int turnDir = s.optInt("atcDirection", 0);
+        double blend = s.optDouble("atcBlend", 0d);
+        // 거리는 바로 윗줄에 크게 떠 있으므로 여기서는 방향과 사유만 짧게 쓴다.
+        // 주행패널 오른쪽 끝(952)까지 여유가 70px 뿐이라 길면 잘린다.
+        // 1) 차선변경을 이미 요청한 상태.
+        if (laneDir != 0) {
+            return nooSide(laneDir) + lang(" 차선변경", " LANE CHG");
+        }
+        // 2) 회전 조향을 잡았거나 지도경로를 섞기 시작한 상태.
+        if (turnDir != 0 || blend > 0.005d) {
+            return nooSide(turnDir) + lang("회전 조향", " TURN");
+        }
+        if (!guidance) {
+            return lang("안내 없음", "NO ROUTE");
+        }
+        // 3) 계획은 섰지만 아직 실행 전 — 어느 차로로 갈지.
+        if (cur > 0 && tgt > 0 && cur != tgt) {
+            return cur + "→" + tgt + lang("차로 ", "L ") + nooSide(tgt - cur);
+        }
+        if (cur > 0 && tgt > 0) {
+            return lang("차로 유지", "KEEP LANE");
+        }
+        // 4) 계획이 안 서는 이유.
+        if (cam > 0 && map > 0) {
+            return lang("차로 c", "LANE c") + cam + "/m" + map;
+        }
+        if (map > 0) {
+            return lang("차로판정 실패", "NO CAM LANES");
+        }
+        return lang("차로안내 없음", "NO LANE GUIDE");
     }
 
     private static final int TBT_GREEN = Color.rgb(31, 122, 72);
@@ -2186,95 +3284,6 @@ public final class HudService extends Service {
 
     // ── 우측 패널 ─────────────────────────────────────────────────────────
 
-    /**
-     * 8/9.2인치 순정 화면에서는 우측 정보 패널을 실제 폭의 15%로 확보한다.
-     * 일반 시스템/디버그 화면은 비율 보존 확대를 쓰고, S9 리모트 화면은
-     * 네이티브 픽셀 좌표로 다시 그려 위·아래 빈 공간 없이 균등 배치한다.
-     */
-    private void drawNativeSystemPanel(Canvas c, Paint p, JSONObject s) {
-        float nativeWidth = phoneNativeFrame == null ? nativeScaleX * WIDTH
-                : phoneNativeFrame.getWidth();
-        float nativeHeight = phoneNativeFrame == null ? nativeScaleY * HEIGHT
-                : phoneNativeFrame.getHeight();
-        float targetWidthPx = nativeWidth * NATIVE_SYSTEM_RATIO;
-        float logicalLeft = SYSTEM_RIGHT - targetWidthPx / nativeScaleX;
-
-        p.setShader(null);
-        p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.rgb(7, 12, 18));
-        c.drawRect(logicalLeft, 0f, SYSTEM_RIGHT, HEIGHT, p);
-
-        if (configuredOutputMode == 3) {
-            int pixelSave = c.save();
-            c.scale(1f / nativeScaleX, 1f / nativeScaleY);
-            drawNativeS9Remote(c, p, nativeWidth, nativeHeight, targetWidthPx);
-            c.restoreToCount(pixelSave);
-            return;
-        }
-
-        int save = c.save();
-        float equalizeX = nativeScaleY / nativeScaleX;
-        float contentScale = targetWidthPx
-                / ((SYSTEM_RIGHT - SYSTEM_LEFT) * nativeScaleY);
-        c.scale(equalizeX, 1f, SYSTEM_RIGHT, HEIGHT * 0.5f);
-        c.scale(contentScale, contentScale, SYSTEM_RIGHT, HEIGHT * 0.5f);
-        if (configuredOutputMode == 2) {
-            drawSystemDebug(c, p, s);
-        } else {
-            drawSystem(c, p, s);
-        }
-        c.restoreToCount(save);
-    }
-
-    /** S9 상태 7개를 순정 패널의 위에서 아래까지 네이티브 픽셀로 배치한다. */
-    private void drawNativeS9Remote(Canvas c, Paint p, float width, float height,
-                                    float panelWidth) {
-        long now = SystemClock.elapsedRealtime();
-        long silence = display == null ? -1L : display.silenceMs();
-        long linkAge = lastReconnectElapsed == 0L ? -1L : now - lastReconnectElapsed;
-        Runtime rt = Runtime.getRuntime();
-        long usedMb = (rt.totalMemory() - rt.freeMemory()) / 1048576L;
-        String[][] rows = {
-                {"SoC", s9TempC < 0f ? "--" : String.format(Locale.US, "%.0f°C", s9TempC)},
-                {"CPU", s9CpuPercent < 0f ? "--" : String.format(Locale.US, "%.0f%%", s9CpuPercent)},
-                {"MEM", usedMb + "M"},
-                {"USB ERR", Integer.toString(usbErrorStreak)},
-                {"PANEL", silence < 0L ? "--" : String.format(Locale.US, "%.0fs", silence / 1000f)},
-                {"LINK", linkAge < 0L ? "--" : durationText(linkAge)},
-                {"OSM", osmWorld == null ? "--" : osmWorld.status()},
-        };
-
-        float unit = height / 480f;
-        float left = width - panelWidth;
-        float cx = width - panelWidth * 0.5f;
-        p.setShader(null);
-        p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.rgb(7, 12, 18));
-        c.drawRect(left, 0f, width, height, p);
-        text(c, p, lang("S9 리모트", "S9 REMOTE"), cx, 23f * unit, 12f * unit,
-                Color.rgb(140, 210, 255), Paint.Align.CENTER);
-
-        float top = 37f * unit;
-        float rowHeight = 48f * unit;
-        float gap = 7f * unit;
-        float margin = 5f * unit;
-        for (String[] row : rows) {
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.rgb(16, 23, 32));
-            scratchRect.set(left + margin, top, width - margin, top + rowHeight);
-            c.drawRoundRect(scratchRect, 6f * unit, 6f * unit, p);
-            text(c, p, row[0], cx, top + 18f * unit, 9f * unit,
-                    Color.rgb(140, 152, 162), Paint.Align.CENTER);
-            text(c, p, row[1], cx, top + 40f * unit, 16f * unit,
-                    Color.rgb(235, 240, 245), Paint.Align.CENTER);
-            top += rowHeight + gap;
-        }
-        text(c, p, lang("USB 오류 / 패널 응답", "USB ERR / PANEL"), cx, 448f * unit,
-                8f * unit, Color.rgb(110, 122, 132), Paint.Align.CENTER);
-        text(c, p, lang("LINK = 재연결 경과", "LINK = RECONNECT"), cx, 468f * unit,
-                8f * unit, Color.rgb(110, 122, 132), Paint.Align.CENTER);
-    }
-
     private String systemValue(JSONObject system, String key, String unit) {
         if (system == null || system.isNull(key)) {
             return "--";
@@ -2350,9 +3359,9 @@ public final class HudService extends Service {
                 {"REL", relText},
                 {"FPS", String.format(Locale.US, "%.1f", measuredFps)},
                 {"JPEG", String.format(Locale.US, "%.0fK", lastJpegBytes / 1024.0f)},
-                {"NOO", nooLaneText(s)},
         };
-        // 10 rows: 38 + 9*42 + 38 = 454 < HEIGHT(462).
+        // NOO 차선변경 진단은 주행패널의 회전화살표 위로 옮겼다(drawNooTurn).
+        // 9 rows: 38 + 8*42 + 38 = 412 < HEIGHT(462).
         float top = 38f;
         for (String[] row : rows) {
             p.setStyle(Paint.Style.FILL);
@@ -2387,7 +3396,6 @@ public final class HudService extends Service {
                 {"USB ERR", Integer.toString(usbErrorStreak)},
                 {"PANEL", silence < 0L ? "--" : String.format(Locale.US, "%.0fs", silence / 1000f)},
                 {"LINK", linkAge < 0L ? "--" : durationText(linkAge)},
-                {"OSM", osmWorld == null ? "--" : osmWorld.status()},
         };
         float top = 46f;
         for (String[] row : rows) {
@@ -2612,7 +3620,7 @@ public final class HudService extends Service {
         }
         p.setShader(null);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.argb(45, 0, 0, 0));
+        p.setColor(Color.argb(28, 0, 0, 0));
         c.drawRect(0f, 0f, WIDTH, HEIGHT, p);
     }
 
@@ -2626,11 +3634,6 @@ public final class HudService extends Service {
         tripLastElapsed = now;
         double speed = Math.max(0d, s.optDouble("speed", 0d));
         tripDistanceKm += dt * speed / 3600000d;
-        // 건물 스크롤용 누적 거리(m). 오래 달려도 float 정밀도가 남도록 접어 준다.
-        worldOdoM += (float) (dt * speed / 3600d);
-        if (worldOdoM > 1.0e6f) {
-            worldOdoM -= 1.0e6f;
-        }
     }
 
     private int mapRight() {
@@ -2648,30 +3651,6 @@ public final class HudService extends Service {
         p.setColor(dark ? Color.rgb(8, 13, 19) : Color.rgb(232, 235, 237));
         c.drawRect(MAP_LEFT, 0f, mapRight(), HEIGHT, p);
         text(c, p, title, mapCenterX(), 42f, 27f, dark ? Color.WHITE : Color.rgb(25, 30, 34), Paint.Align.CENTER);
-    }
-
-    /**
-     * NOO 차선변경 진단 문자열.
-     * "2>3" = 현재차로>목표차로 계획 있음, "c4/m3" = 카메라 4차로 / 티맵 3차로로
-     * 서로 다르게 세는 중(계획 없음), "--" = 데이터 없음.
-     */
-    private static String nooLaneText(JSONObject s) {
-        JSONObject noo = s.optJSONObject("noo");
-        if (noo == null) {
-            return "--";
-        }
-        int cur = noo.optInt("cur", 0);
-        int tgt = noo.optInt("tgt", 0);
-        if (cur > 0 && tgt > 0) {
-            int dir = noo.optInt("dir", 0);
-            return cur + ">" + tgt + (dir == 0 ? "" : (dir < 0 ? " L" : " R"));
-        }
-        int cam = noo.optInt("cam", 0);
-        int map = noo.optInt("map", 0);
-        if (cam > 0 || map > 0) {
-            return "c" + cam + "/m" + map;
-        }
-        return "--";
     }
 
     private void drawDebugRight(Canvas c, Paint p, JSONObject s) {
@@ -2703,8 +3682,6 @@ public final class HudService extends Service {
         text(c, p, String.format(Locale.US, "FPS %d   MAP %dfps   JPEG %d",
                 configuredFps, Math.max(2, Math.min(5, s.optInt("hudMapFps", 5))), jpegQuality),
                 1000f, y, 22f, fg, Paint.Align.LEFT);
-        y += 52f;
-        text(c, p, "NOO " + nooLaneText(s), 1000f, y, 23f, fg, Paint.Align.LEFT);
         y += 52f;
         text(c, p, lang("S9 렌더링 / USB 출력", "S9 RENDER / USB OUTPUT"),
                 1000f, y, 20f, sub, Paint.Align.LEFT);
@@ -2744,19 +3721,21 @@ public final class HudService extends Service {
         }
         p.setFilterBitmap(true);
         int mapSave = c.save();
-        if (nativeLayoutRendering) {
-            // 지도 비트맵은 세로 배율을 양축에 동일하게 적용해 중앙 크롭한다.
-            // 지도 글자와 도로 아이콘이 길쭉해지는 것을 막는다.
-            c.clipRect(MAP_LEFT, 0f, mapRight(), HEIGHT);
-            c.scale(nativeScaleY / nativeScaleX, 1f, mapCenterX(), HEIGHT * 0.5f);
-        }
         c.drawBitmap(map, null, scratchIRect, p);
         c.restoreToCount(mapSave);
 
-        int overlaySave = c.save();
-        if (nativeLayoutRendering) {
-            c.clipRect(MAP_LEFT, 0f, mapRight(), HEIGHT);
+        // TMAP 캡처는 앱의 주간 지도가 그대로 들어오므로 전체 HUD 야간
+        // 오버레이만으로는 흰 배경이 지나치게 밝다. 야간 테마일 때 지도
+        // 영역에만 짙은 남청색 마스크를 추가한다. TBT 배너는 이 다음에
+        // 그리므로 안내 정보의 원래 밝기와 색상은 유지된다.
+        if (frameDark) {
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.argb(155, 2, 9, 20));
+            c.drawRect(scratchIRect, p);
         }
+
+        int overlaySave = c.save();
         JSONObject l = layout(s);
         // 배너 위끝(0)이 곧 기준점이어야 패널 최상단에 딱 붙는다. 기준점이 71 이면
         // 배율이 1 이 아닐 때 71x(1-배율) 만큼 아래로 밀린다.
@@ -2916,24 +3895,6 @@ public final class HudService extends Service {
 
     private int beginElement(Canvas c, JSONObject l, String name, float px, float py) {
         int save = c.save();
-        if (nativeLayoutRendering) {
-            // Canvas 전체는 1920x462 좌표를 순정 해상도에 맞추지만, 위젯은
-            // 동일한 실제 X/Y 배율이 되도록 역보정해 원·글자·아이콘을 보존한다.
-            float desired = "system".equals(name) ? nativeScaleX : nativeWidgetScale;
-            float pivotX = px;
-            if (px >= MAP_LEFT && px < mapRight()) {
-                pivotX = MAP_LEFT;
-            } else if ("lights".equals(name) || "prnd".equals(name) || "lead".equals(name)) {
-                pivotX = 0f;
-            } else if ("mode".equals(name) || "range".equals(name)
-                    || "camera".equals(name) || "tpms".equals(name)
-                    || "noo".equals(name)) {
-                // NOO 는 과속카메라와 같은 세로줄이라 기준점도 같이 묶어야
-                // 8인치/9.2인치 순정 화면에서 두 요소가 서로 어긋나지 않는다.
-                pivotX = DRIVE_RIGHT;
-            }
-            c.scale(desired / nativeScaleX, desired / nativeScaleY, pivotX, py);
-        }
         float dx = lv(l, name + "Dx", 0f);
         float dy = lv(l, name + "Dy", 0f);
         float scale = Math.max(0.5f, Math.min(2f, lv(l, name + "Scale", 1f)));
@@ -2965,7 +3926,6 @@ public final class HudService extends Service {
     @Override
     public void onDestroy() {
         running.set(false);
-        starter.removeCallbacksAndMessages(null);
         workersStarted = false;
         serviceRunning = false;
         mapConnected = false;
@@ -2985,13 +3945,13 @@ public final class HudService extends Service {
             egoCar.recycle();
             egoCar = null;
         }
-        if (otherCar != null) {
-            otherCar.recycle();
-            otherCar = null;
-        }
         if (wheelImage != null) {
             wheelImage.recycle();
             wheelImage = null;
+        }
+        if (statusIcons != null) {
+            statusIcons.recycle();
+            statusIcons = null;
         }
         if (outFrame != null) {
             outFrame.recycle();
@@ -3003,12 +3963,6 @@ public final class HudService extends Service {
                 phoneFrame.recycle();
                 phoneFrame = null;
                 phoneCanvas = null;
-            }
-            if (phoneNativeFrame != null) {
-                phoneNativeFrame.recycle();
-                phoneNativeFrame = null;
-                phoneNativeCanvas = null;
-                phoneNativeProfile = AppPrefs.DISPLAY_PROFILE_AUTO;
             }
         }
         synchronized (assetLock) {

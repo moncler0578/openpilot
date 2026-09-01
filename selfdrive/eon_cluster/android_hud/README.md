@@ -1,5 +1,53 @@
 # Android remote HUD (experimental)
 
+> **v1.06 local map context** — `ModelWorldGL` keeps the modelV2 road
+> authoritative and draws an optional S9-local SQLite road/building layer
+> underneath it. The legacy database path is
+> `/sdcard/Android/data/ai.comma.remotehud/files/hud_map.sqlite`. The app also
+> supports four checksummed Gyeonggi assets (`south`, `north`, `west`, `east`)
+> and automatically selects/downloads the current `mapPose` region. If the
+> regional manifest is not published yet, it safely retains the verified
+> `hud-map-v1` fallback. The HUD remains model-only until a required download
+> completes.
+>
+> Build the database directly from WGS84 GeoJSON or VWorld/NGII SHP ZIPs:
+>
+> ```sh
+> python selfdrive/eon_cluster/tools/build_hud_map_db.py \
+>   --building-shp-zip F_FAC_BUILDING_경기_오산시.zip \
+>   --building-shp-zip F_FAC_BUILDING_경기_화성시_효행구.zip \
+>   --building-shp-zip F_FAC_BUILDING_경기_화성시_만세구.zip \
+>   --building-shp-zip F_FAC_BUILDING_경기_화성시_병점구.zip \
+>   --building-shp-zip F_FAC_BUILDING_경기_화성시_동탄구.zip \
+>   --road-shp-zip '(연속수치지형도)도로중심선_경기.zip' \
+>   --output hud_map.sqlite
+> adb push hud_map.sqlite \
+>   /sdcard/Android/data/ai.comma.remotehud/files/hud_map.sqlite
+> ```
+>
+> A complete Gyeonggi database is split for Release deployment with:
+>
+> ```sh
+> python selfdrive/eon_cluster/tools/split_hud_map_db.py \
+>   --input hud_map_gyeonggi.sqlite \
+>   --output-dir hud-map-gyeonggi-v1
+> ```
+>
+> Tile loading and JSON decoding run outside the render thread. At most 70
+> visible buildings are drawn, with no facade textures, shadows or trees.
+
+> **현재 상태 (v0.89)** — 주행씬 렌더러는 `ModelWorldGL.java` 하나뿐이다.
+> Canvas 판 `World3D.java` 와 그 전용 요소(건물 · 정지선 · 노면 제한속도 ·
+> 과속방지턱 · 티맵 차로선 · 가드레일 · 헤이즈)는 제거됐고, 파라미터
+> `EonClusterHudBuildings` / `WorldWidth` / `CarStyle` / `RoadSigns` /
+> `Gl` 도 함께 삭제됐다. BSD 경고 띠는 GL 안에서 그리고, 앞차는 자차와
+> 같은 `hud_ego_car` 그림을 축소해 얹는다.
+>
+> 출력은 **외부 TURZX 패널 전용**이다. 순정 화면(nMirror) 출력 경로 —
+> `HudFullscreenActivity` / `HudFavoriteActivity` / 화면 프로필(순정 8 ·
+> 9.2인치) / `EonClusterHudOutputTarget` — 는 모두 제거됐다.
+> 아래 v0.31 이하 절은 당시 기록이므로 현재 코드와 다를 수 있다.
+
 This optional companion moves the 1920x462 HUD render, JPEG compression and
 TURZX `1cbe:0092` USB upload from the EON to an Android phone.  The EON sends a
 small UDP JSON telemetry packet at 10 Hz. The already-compressed TMAP JPEG
@@ -523,3 +571,15 @@ v0.39의 한 장 비트맵 비균일 확대는 8인치에서 X 0.42배/Y 1.04배
 * 갱신 실패 시 기존 타일을 유지하고 90분 뒤 재시도한다. 표시할 캐시가 없는 최초 실패는 기존처럼 90초 뒤 재시도한다.
 * 캐시 파일 `lastModified`는 마지막 다운로드 시각으로만 사용하며 읽을 때 더 이상 갱신하지 않는다.
 * 기존 500파일/96MB 제한과 응답 2MB 제한은 유지한다.
+
+## v0.47 (OSM 도로 지도 정합)
+
+* TMAP GPS와 방위각을 그대로 투영하던 주변 환경을 가장 가까운 OSM 도로
+  중심선에 시각적으로 정합한다.
+* 카메라 차로 수·현재 차로·차로 폭으로 전체 도로 중심과 예상 도로 폭을 계산해,
+  평행 서비스도로를 현재 주도로로 잘못 선택할 가능성을 낮춘다.
+* 32도보다 방향이 다른 교차 도로와 15m보다 큰 횡보정은 거부하고, 보정값은
+  약 2초 동안 완만하게 반영해 교차로와 타일 경계에서 화면이 튀지 않게 한다.
+* 건물·옆길·방음벽·가드레일·나무·가로등에 같은 이동·회전을 적용해 상대 위치를
+  보존한다. 지도 정합 결과는 표시 전용이며 주행 계획과 제어에는 사용하지 않는다.
+* 출력 모드 3의 OSM 상태 끝에 `M이동m/회전도` 또는 `RAW`를 표시한다.
